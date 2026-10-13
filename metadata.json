@@ -1,0 +1,6 @@
+{
+  "name": "Motosiklet ve Kurye Çağırma Platformu",
+  "description": "Müşterinin tek dokunuşla motosiklet ya da kurye çağırdığı, kuryenin anlık talep kabul ettiği ve tüm operasyonun canlı haritadan yönetildiği uçtan uca platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

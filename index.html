@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MotoPilot | Yeni Nesil Motosiklet Yolcu & Hızlı Kurye Platformu</title>
+    <meta
+      name="description"
+      content="MotoPilot: İstanbul genelinde tek dokunuşla motosiklet yolcu (Moto TAG) ve kurye çağırma platformu. Canlı radar takibi, şeffaf tarife ve güvenceli taşımacılık."
+    />
+    <link rel="canonical" href="https://motopilot.com.tr/" />
+
+    <!-- OpenGraph Social Cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://motopilot.com.tr/" />
+    <meta property="og:site_name" content="MotoPilot" />
+    <meta property="og:locale" content="tr_TR" />
+    <meta property="og:title" content="MotoPilot | İstanbul Motosiklet Yolcu & Hızlı Kurye Ağı" />
+    <meta
+      property="og:description"
+      content="Trafikten sıyrılın. Güvenli kask donanımlı motosiklet yolculuğu ve 30 dakikada ekspres paket teslimatı."
+    />
+    <meta property="og:image" content="https://motopilot.com.tr/og-image.png" />
+
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MotoPilot | Hızlı Şehir İçi Mobilite ve Kurye" />
+    <meta
+      name="twitter:description"
+      content="İstanbul'da trafiksiz yolculuk ve anlık kurye siparişi. Şeffaf komisyonsuz sürücü kazancı ve işletme çözümleri."
+    />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap&subset=latin,latin-ext" rel="stylesheet">
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://motopilot.com.tr/#organization",
+          "name": "MotoPilot Teknoloji ve Mobilite A.Ş.",
+          "url": "https://motopilot.com.tr",
+          "logo": "https://motopilot.com.tr/logo.png",
+          "sameAs": [
+            "https://twitter.com/motopilot_tr",
+            "https://instagram.com/motopilot.tr",
+            "https://linkedin.com/company/motopilot"
+          ],
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "telephone": "+90-850-840-6686",
+            "contactType": "customer service",
+            "areaServed": "TR",
+            "availableLanguage": ["Turkish", "English"]
+          }
+        },
+        {
+          "@type": "LocalBusiness",
+          "@id": "https://motopilot.com.tr/#localbusiness",
+          "name": "MotoPilot İstanbul Operasyon Merkezi",
+          "image": "https://motopilot.com.tr/og-image.png",
+          "telephone": "+90-850-840-6686",
+          "priceRange": "₺₺",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Büyükdere Cad. No: 195 Levent",
+            "addressLocality": "Beşiktaş",
+            "addressRegion": "İstanbul",
+            "postalCode": "34394",
+            "addressCountry": "TR"
+          },
+          "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": 41.0805,
+            "longitude": 29.0125
+          },
+          "openingHoursSpecification": {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday"
+            ],
+            "opens": "00:00",
+            "closes": "23:59"
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://motopilot.com.tr/#app",
+          "name": "MotoPilot Web & Mobil Terminali",
+          "applicationCategory": "TransportApplication",
+          "operatingSystem": "All",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "TRY"
+          }
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body class="bg-[#050507] text-[#F5F5F7] antialiased selection:bg-[#0071E3] selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

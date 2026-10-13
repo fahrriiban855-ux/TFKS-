@@ -1,0 +1,7 @@
+# MotoPilot robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://motopilot.com.tr/sitemap.xml
