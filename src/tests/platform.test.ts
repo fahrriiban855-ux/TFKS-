@@ -1,6 +1,7 @@
 /**
  * MotoPilot — Otomatik Birim ve İş Kuralı Test Paketi (Bölüm 2 & 3 & GAP-02 Doğrulaması)
- * Çalıştırma: npm test (tsx src/tests/platform.test.ts)
+ * Çalıştırma: npm test (tsx src/tests/platform.test.ts && tsx src/tests/server.test.ts)
+ * Not: Bir test grubu hata aldığında süreç hemen sonlanmaz; tüm gruplar çalıştırılır ve sonuçlar raporlanır.
  */
 import assert from 'node:assert/strict';
 import {
@@ -16,6 +17,8 @@ import {
   createZeroCommissionFeeSnapshot,
   evaluateBusinessIntroEligibility,
 } from '../types/platform';
+import { INITIAL_TARIFFS } from '../data/platformData';
+import { api } from '../services/api';
 import {
   CUSTOMER_WIREFRAME_SCREENS,
   COURIER_WIREFRAME_SCREENS,
@@ -32,23 +35,33 @@ import {
   INITIAL_ZONE_CAPACITY_METRICS,
 } from '../services/motopilotEngines';
 
+type GroupResult = {
+  name: string;
+  passed: boolean;
+  error?: unknown;
+};
+
+const groupResults: GroupResult[] = [];
+
 function runTest(name: string, fn: () => void) {
   try {
     fn();
+    groupResults.push({ name, passed: true });
     console.log(`✅ [PASS] ${name}`);
   } catch (err) {
+    groupResults.push({ name, passed: false, error: err });
     console.error(`❌ [FAIL] ${name}`, err);
-    process.exit(1);
   }
 }
 
 console.log('🚀 MotoPilot Birim, Finansal, Kapasite ve 42 Ekran Testleri Başlatılıyor...\n');
 
 // 1. Finansal Yuvarlama & Kuruş Hassasiyeti Testi (A8)
-runTest('roundCurrency kuruş hassasiyetini doğru hesaplar', () => {
+runTest('roundCurrency kuruş hassasiyetini ve M0 %0 komisyon tarifesini doğru korur', () => {
   assert.equal(roundCurrency(145.556), 145.56);
   assert.equal(roundCurrency(100.001), 100);
   assert.equal(roundCurrency(0), 0);
+  assert.equal(INITIAL_TARIFFS.platformCommissionRate, 0, 'M0 başlangıç komisyon oranı %0 olmalı');
 });
 
 // 2. Haversine Küresel Mesafe ve Durum Makinesi Geçiş Testi
@@ -80,10 +93,13 @@ runTest('createZeroCommissionFeeSnapshot 18 alanlı M0 %0 komisyon kaydı üreti
   assert.ok(snap.snapshotHash.startsWith('sha256:'));
 });
 
-// 4. Telefon Numarası ve Kart Son 4 Hane Maskeleme Testleri
-runTest('toPhoneNumber ve toCardLastFour doğrulamaları çalışır', () => {
+// 4. Telefon Numarası, Kart Son 4 Hane ve Idempotency-Key Koruması Testleri
+runTest('toPhoneNumber, toCardLastFour ve ApiClient Idempotency-Key doğrulamaları çalışır', () => {
   assert.equal(toPhoneNumber('+90 532 100 20 30'), '+905321002030');
   assert.equal(toCardLastFour('4543-1234-5678-9012'), '9012');
+  const uniqueKey = `IDEMP-${Date.now()}`;
+  assert.equal(api.checkIdempotency(uniqueKey), true);
+  assert.equal(api.checkIdempotency(uniqueKey), false, 'Aynı Idempotency-Key ikinci kez kabul edilmemeli');
 });
 
 // 5. Coğrafi Koordinat ve Puan Sınırlandırma (Branded Types)
@@ -176,4 +192,10 @@ runTest('42 Hi-Fi Wireframe Ekranı (15 Müşteri + 15 Kurye + 6 İşletme + 6 A
   }
 });
 
-console.log('\n🎉 TÜM TESTLER (8/8 GRUP, 42 EKRAN & M0 %0 KOMİSYON KURALI) BAŞARIYLA GEÇTİ!');
+const passedCount = groupResults.filter((r) => r.passed).length;
+const failedCount = groupResults.length - passedCount;
+
+console.log(`\n📊 Platform Test Özeti: ${passedCount}/${groupResults.length} grup başarılı, ${failedCount} grup başarısız.`);
+if (failedCount > 0) {
+  process.exitCode = 1;
+}

@@ -377,54 +377,59 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
         </div>
 
         {/* Bireysel Hesap Göstergesi & Kurumsal Portala Geçiş */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <span className="text-[11px] font-semibold text-zinc-300 px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center gap-1.5">
-            <User className="w-3 h-3 text-[#0A84FF]" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="text-[11px] font-semibold text-zinc-300 flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-[#0A84FF]" />
             <span>Kişisel Hesap</span>
           </span>
+          <span className="text-zinc-600" aria-hidden="true">·</span>
           <button
+            type="button"
             onClick={() => setActiveView('business')}
-            className="px-2.5 py-1 rounded-full bg-[#BF5AF2]/15 hover:bg-[#BF5AF2]/25 border border-[#BF5AF2]/30 text-[#BF5AF2] text-[10px] font-bold flex items-center gap-1 transition-all active:scale-95"
+            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#BF5AF2]/15 hover:bg-[#BF5AF2]/25 border border-[#BF5AF2]/30 text-[#BF5AF2] text-[11px] font-bold flex items-center gap-1.5 transition-all active:scale-95"
             title="Kurumsal İşletme Portalı'na Geç"
           >
-            <Building2 className="w-3 h-3" />
+            <Building2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">İşletme Portalı</span>
             <span>➔</span>
           </button>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Sadakat Puan & Fırsatlar Rozeti */}
+          {/* Sadakat Puan & Fırsatlar Butonu */}
           <button
+            type="button"
             onClick={() => {
               setCustomerProfileMode('individual');
               setPersonalTab('loyalty');
             }}
-            className="px-2.5 py-1 bg-[#FFD60A]/10 hover:bg-[#FFD60A]/20 text-[#FFD60A] border border-[#FFD60A]/30 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all active:scale-95"
+            className="min-h-[36px] px-3 py-1.5 bg-[#FFD60A]/10 hover:bg-[#FFD60A]/20 text-[#FFD60A] border border-[#FFD60A]/30 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all active:scale-95 tabular-nums"
             title="Sadakat Puanlarım & Kuponlarım"
           >
-            <Award className="w-3 h-3 text-[#FFD60A]" />
+            <Award className="w-3.5 h-3.5 text-[#FFD60A]" />
             <span>{loyaltyAccount.availablePoints} P</span>
           </button>
 
-          {/* Apple SOS Pill Button (Section 2.10) */}
+          {/* Acil Yardım (SOS) Butonu */}
           <button
+            type="button"
             onClick={() => {
               setEmergencyAlertSent(false);
               setTripLinkCopied(false);
               setShowSosModal(true);
             }}
-            className="px-2.5 py-1 bg-[#FF453A]/15 hover:bg-[#FF453A]/25 text-[#FF453A] border border-[#FF453A]/30 rounded-full text-[10px] font-bold flex items-center gap-1 transition-all active:scale-95"
+            className="min-h-[36px] px-3 py-1.5 bg-[#FF453A]/15 hover:bg-[#FF453A]/25 text-[#FF453A] border border-[#FF453A]/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95"
             title="Acil Yardım & Olay Bildirimi"
           >
-            <AlertTriangle className="w-3 h-3 stroke-[2.2]" />
+            <AlertTriangle className="w-3.5 h-3.5 stroke-[2.2]" />
             <span>SOS</span>
           </button>
 
           {/* Kompakt Menü Butonu */}
           <button
+            type="button"
             onClick={() => setShowMenuDrawer(true)}
-            className="px-2.5 py-1 bg-white/[0.08] hover:bg-white/[0.14] text-[#F5F5F7] border border-white/[0.1] rounded-full text-[10px] font-semibold flex items-center gap-1 transition-all active:scale-95"
+            className="min-h-[36px] px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.14] text-[#F5F5F7] border border-white/[0.1] rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all active:scale-95"
             title="Cüzdan, Geçmiş ve Hesap Menüsü"
           >
             <Menu className="w-3.5 h-3.5" />

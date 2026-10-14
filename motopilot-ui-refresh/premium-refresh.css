@@ -1,0 +1,226 @@
+/* MotoPilot UI refresh — layered on top of the existing design system.
+   This file deliberately changes rendered styling across the application without
+   replacing business logic or individual screens. */
+
+:root,
+html.dark,
+html[data-theme="dark"] {
+  --bg-canvas: #080c14;
+  --bg-surface: #101725;
+  --bg-elevated: #182235;
+  --border-subtle: rgba(166, 186, 220, 0.15);
+  --text-primary: #f4f7fc;
+  --text-secondary: #a0aec0;
+  --accent-primary: #6b8cff;
+  --status-success: #39d6a1;
+  --status-warning: #f4bd61;
+  --status-danger: #ff6b79;
+  --surface-primary: var(--bg-canvas);
+  --surface-secondary: var(--bg-surface);
+  --surface-tertiary: var(--bg-elevated);
+  --surface-elevated: rgba(16, 23, 37, 0.9);
+  --label-primary: var(--text-primary);
+  --label-secondary: var(--text-secondary);
+  --system-blue: var(--accent-primary);
+  --system-green: var(--status-success);
+  --system-orange: var(--status-warning);
+  --system-red: var(--status-danger);
+}
+
+html:not(.light):not([data-theme="light"]) body {
+  background-color: var(--bg-canvas);
+  background-image:
+    radial-gradient(ellipse at 12% -12%, rgba(73, 105, 190, 0.15), transparent 42rem),
+    radial-gradient(ellipse at 95% 6%, rgba(18, 143, 159, 0.07), transparent 34rem);
+  background-attachment: fixed;
+}
+
+html:not(.light):not([data-theme="light"]) #root > div > header {
+  background: rgba(8, 12, 20, 0.86) !important;
+  border-color: rgba(166, 186, 220, 0.14) !important;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.18);
+}
+
+#root > div > header nav {
+  background: rgba(20, 29, 45, 0.8) !important;
+  border-color: rgba(166, 186, 220, 0.15) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+#root > div > header nav button[aria-selected="true"] {
+  background: linear-gradient(135deg, #6489ff 0%, #4770e8 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 18px rgba(70, 108, 230, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.17) !important;
+}
+
+#root > div > header nav button[aria-selected="false"] {
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+#root > div > header nav button[aria-selected="false"]:hover {
+  background: rgba(115, 143, 196, 0.12) !important;
+}
+
+#main-content {
+  isolation: isolate;
+}
+
+#main-content h1 {
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+#main-content h2,
+#main-content h3 {
+  letter-spacing: -0.025em;
+  text-wrap: pretty;
+}
+
+/* Smooth out hard-coded dark surfaces used in many of the existing screens. */
+html:not(.light):not([data-theme="light"]) #main-content [class~="bg-black"],
+html:not(.light):not([data-theme="light"]) #main-content [class~="bg-zinc-950"],
+html:not(.light):not([data-theme="light"]) #main-content [class~="bg-slate-950"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="bg-[#090D16]"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="bg-[#080E1C]"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="bg-[#1C1C1E]"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="bg-[#111827]"] {
+  background-color: #101725 !important;
+}
+
+html:not(.light):not([data-theme="light"]) #main-content [class~="border-zinc-800"],
+html:not(.light):not([data-theme="light"]) #main-content [class~="border-slate-800"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="border-white/[0.08]"],
+html:not(.light):not([data-theme="light"]) #main-content [class*="border-white/10"] {
+  border-color: rgba(166, 186, 220, 0.15) !important;
+}
+
+/* Reusable panel surfaces: preserve layout but give panels a clearer hierarchy. */
+#main-content [class*="rounded-3xl"][class*="border"],
+#main-content [class*="rounded-[28px]"][class*="border"],
+#main-content [class*="rounded-2xl"][class*="border"] {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10);
+}
+
+#main-content button:not(:disabled) {
+  transition-property: background-color, color, border-color, box-shadow, transform;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+}
+
+#main-content button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+#main-content button:focus-visible,
+#main-content a:focus-visible,
+#main-content input:focus-visible,
+#main-content select:focus-visible,
+#main-content textarea:focus-visible {
+  outline: 2px solid #86a3ff !important;
+  outline-offset: 3px;
+}
+
+#main-content input,
+#main-content select,
+#main-content textarea {
+  border-radius: 12px;
+}
+
+html:not(.light):not([data-theme="light"]) #main-content input,
+html:not(.light):not([data-theme="light"]) #main-content select,
+html:not(.light):not([data-theme="light"]) #main-content textarea {
+  background-color: #0d1420;
+  border-color: rgba(166, 186, 220, 0.2);
+  color: #f4f7fc;
+}
+
+html:not(.light):not([data-theme="light"]) #main-content input::placeholder,
+html:not(.light):not([data-theme="light"]) #main-content textarea::placeholder {
+  color: #75839a;
+}
+
+/* Give wide operational tables a more legible, restrained look. */
+#main-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+#main-content thead th {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+html:not(.light):not([data-theme="light"]) #main-content tbody tr:hover {
+  background-color: rgba(108, 140, 210, 0.055);
+}
+
+html.light,
+html[data-theme="light"] {
+  --bg-canvas: #f4f7fb;
+  --bg-surface: #ffffff;
+  --bg-elevated: #edf2f8;
+  --border-subtle: rgba(39, 57, 86, 0.13);
+  --text-primary: #142033;
+  --text-secondary: #53627a;
+  --accent-primary: #365fe5;
+}
+
+html.light body,
+html[data-theme="light"] body {
+  background-image:
+    radial-gradient(ellipse at 8% -15%, rgba(78, 113, 227, 0.075), transparent 40rem),
+    radial-gradient(ellipse at 100% 4%, rgba(25, 147, 160, 0.045), transparent 32rem);
+  background-attachment: fixed;
+}
+
+html.light #root > div > header,
+html[data-theme="light"] #root > div > header {
+  background: rgba(248, 250, 253, 0.88) !important;
+  border-color: rgba(39, 57, 86, 0.12) !important;
+}
+
+html.light #root > div > header nav,
+html[data-theme="light"] #root > div > header nav {
+  background: rgba(229, 235, 245, 0.8) !important;
+  border-color: rgba(39, 57, 86, 0.12) !important;
+}
+
+@media (max-width: 900px) {
+  #root > div > header > div {
+    gap: 0.5rem;
+  }
+
+  #main-content {
+    overflow-wrap: anywhere;
+  }
+
+  #main-content [class*="grid-cols-4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  #main-content [class*="grid-cols-4"],
+  #main-content [class*="grid-cols-3"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #main-content [class*="px-6"] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

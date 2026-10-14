@@ -589,20 +589,18 @@ export const BusinessPortal: React.FC = () => {
               <Building2 className="w-7 h-7 stroke-[2]" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#BF5AF2]/20 text-[#BF5AF2] border border-[#BF5AF2]/30">
-                  Kurumsal İşletme SaaS Portalı
-                </span>
+              <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-400">
+                <span className="font-semibold text-[#BF5AF2]">Kurumsal İşletme SaaS Portalı</span>
+                <span aria-hidden="true">·</span>
                 <span
-                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                    isBusinessDeliveryAllowed
-                      ? 'bg-[#30D158]/20 text-[#30D158] border-[#30D158]/40'
-                      : 'bg-[#FF453A]/20 text-[#FF453A] border-[#FF453A]/40'
+                  className={`font-mono font-semibold ${
+                    isBusinessDeliveryAllowed ? 'text-[#30D158]' : 'text-[#FF453A]'
                   }`}
                 >
-                  Üyelik: {subscriptionStatus} · %0 Sipariş Komisyonu
+                  Üyelik: {subscriptionStatus} (%0 Sipariş Komisyonu)
                 </span>
-                <span className="text-[10px] font-mono text-zinc-400">
+                <span aria-hidden="true">·</span>
+                <span className="font-mono text-zinc-400">
                   VKN: {activeBusinessAccount.taxNumber}
                 </span>
               </div>
@@ -618,10 +616,11 @@ export const BusinessPortal: React.FC = () => {
           {/* İşletme ve Alt Kullanıcı Oturum Seçici */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-black/40 border border-white/[0.08] p-2.5 rounded-2xl">
             <div className="flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-semibold px-2 mb-1">
+              <label htmlFor="active-business-select" className="text-[11px] text-zinc-400 font-semibold px-2 mb-1">
                 Aktif İşletme:
               </label>
               <select
+                id="active-business-select"
                 value={activeBusinessAccount.id}
                 onChange={(e) => setActiveBusinessAccount(e.target.value)}
                 className="bg-[#2C2C2E] border border-white/[0.1] text-xs font-semibold text-white px-3 py-1.5 rounded-xl focus:outline-none focus:border-[#BF5AF2]"
@@ -635,10 +634,11 @@ export const BusinessPortal: React.FC = () => {
             </div>
 
             <div className="flex flex-col">
-              <label className="text-[10px] text-zinc-500 font-semibold px-2 mb-1">
+              <label htmlFor="active-subuser-select" className="text-[11px] text-zinc-400 font-semibold px-2 mb-1">
                 Giriş Yapan Alt Kullanıcı (ACL):
               </label>
               <select
+                id="active-subuser-select"
                 value={activeBusinessSubUser?.id || ''}
                 onChange={(e) => setActiveBusinessSubUserId(e.target.value)}
                 className="bg-[#2C2C2E] border border-white/[0.1] text-xs font-semibold text-white px-3 py-1.5 rounded-xl focus:outline-none focus:border-[#BF5AF2]"

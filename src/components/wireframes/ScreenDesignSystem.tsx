@@ -118,19 +118,19 @@ export const ScreenDesignSystem: React.FC = () => {
       <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-3xl shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-300 mb-1 font-mono">
-            <span>Mobil & Web Arayüz Şemaları</span>
+            <span>Tasarım ve Şartname Kataloğu</span>
             <span>·</span>
-            <span>{ALL_WIREFRAME_SCREENS.length} Tasarım Şablonu (15+15+6+6)</span>
+            <span>{ALL_WIREFRAME_SCREENS.length} Ekran Şablonu (15+15+6+6)</span>
             <span>·</span>
             <span>22 Uçtan Uca Akış</span>
             <span>·</span>
-            <span>71 Doğrulama Kontrolü</span>
+            <span>71 Doğrulama Kuralı</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Ekran Tasarımları & 42 Hi-Fi Arayüz Mimarisi
+            42 Ekranlık Tasarım Kataloğu & Master TFKŞ Şartnamesi
           </h1>
           <p className="text-xs text-zinc-400 max-w-2xl mt-0.5">
-            Müşteri (15), Kurye (15), İşletme SaaS (6) ve Yönetici (6) ekranlarının interaktif wireframe şemalarını, 22 uçtan uca akışı ve 71 kontrol matrisini inceleyin.
+            Bu görünüm; Müşteri (15), Kurye (15), İşletme SaaS (6) ve Yönetici (6) ekranlarının etkileşimli referans wireframe kataloğunu ve teknik şartnamesini sunar. Canlı operasyon ekranları üst menüdeki ilgili ürün sekmelerinde (Müşteri, İşletme, Kurye, Komuta Merkezi) çalışır.
           </p>
         </div>
 

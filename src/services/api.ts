@@ -8,10 +8,7 @@ import {
   ApiResponse,
   Result,
   RideOrder,
-  Courier,
   BusinessSubUser,
-  CashVault,
-  AuditLogEntry,
   toISODateString,
 } from '../types/platform';
 
@@ -86,7 +83,9 @@ export class ApiClient {
   }
 
   /**
-   * Express Backend ile tam durum senkronizasyonu yapar.
+   * Express Backend ile durum senkronizasyonu yapar.
+   * Sunucu 503 (BACKEND_NOT_CONFIGURED) döndürdüğünde veya çevrimdışı olduğunda
+   * yanıltıcı "sunucu senkronize edildi" yanıtı üretmez; işlemi Outbox kuyruğuna alır.
    */
   public async syncStateWithServer(stateSummary: Record<string, unknown>): Promise<Result<{ syncedAt: string; checksum: string }>> {
     try {
@@ -106,23 +105,22 @@ export class ApiClient {
         }
       }
     } catch {
-      // Offline fallback: Outbox kuyruğuna ekle
-      this.outboxQueue.push({
-        id: `outbox-${Date.now()}`,
-        endpoint: '/api/state/sync',
-        method: 'POST',
-        payload: stateSummary,
-        queuedAt: new Date().toISOString(),
-      });
+      // Ağ hatası durumunda da Outbox kuyruğuna eklenir
     }
 
+    this.outboxQueue.push({
+      id: `outbox-${Date.now()}`,
+      endpoint: '/api/state/sync',
+      method: 'POST',
+      payload: stateSummary,
+      queuedAt: new Date().toISOString(),
+    });
+
     return {
-      success: true,
-      data: {
-        syncedAt: new Date().toISOString(),
-        checksum: `local_sync_${Date.now().toString(16)}`,
-      },
-      message: 'Yerel Offline-First motoru üzerinden senkronize edildi.',
+      success: false,
+      error: new Error('BACKEND_NOT_CONFIGURED'),
+      errorCode: 'BACKEND_NOT_CONFIGURED',
+      message: 'Sunucu yazma uçları kapalı (503 BACKEND_NOT_CONFIGURED); durum yerel depolama ve Outbox kuyruğunda korundu.',
     };
   }
 
@@ -153,7 +151,7 @@ export class ApiClient {
       return {
         success: true,
         data: fullOrder,
-        message: 'Sipariş başarıyla oluşturuldu.',
+        message: 'Sipariş yerel durum motorunda oluşturuldu.',
       };
     } catch (err: any) {
       return {

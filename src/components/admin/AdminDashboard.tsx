@@ -253,45 +253,36 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Real-time System Architecture Indicators */}
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#30D158]/15 border border-[#30D158]/30 text-[#30D158] font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#30D158] animate-pulse" />
-            <span>Rust Tokio v1.38 [Aktif]</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#8E8E93]">
-            <Server className="w-3.5 h-3.5 text-[#0A84FF]" />
-            <span className="text-white">PostgreSQL 16 + PostGIS</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-[#8E8E93]">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#30D158]" />
-            <span className="text-white">TFKS 18 Operasyon Sınıfı</span>
-          </div>
+        {/* Honest System Architecture Metadata (Zero-Pill Rule) */}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[#94A3B8]">
+          <span className="text-[#30D158] font-semibold">M0 Sıfır Komisyon İlkesi (%0)</span>
+          <span aria-hidden="true">·</span>
+          <span>18 Operasyon Sınıfı</span>
+          <span aria-hidden="true">·</span>
+          <span>Yerel Durum + Fail-Closed API</span>
         </div>
       </div>
 
-      {/* 4 Apple High-Gloss KPI Cards */}
+      {/* 4 Executive KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#8E8E93] font-medium block">Toplam Platform Cirosu</span>
-          <div className="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">
+          <span className="text-xs text-[#94A3B8] font-medium block">Toplam İşlem Hacmi (GMV)</span>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-white tracking-tight">
             {platformStats.totalRevenue.toLocaleString('tr-TR')} ₺
           </div>
           <div className="text-[11px] text-[#30D158] font-semibold flex items-center gap-1">
             <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>Kayıtlı kartlardan %100 tahsil edildi</span>
+            <span>Sürücü ve kuryelere %100 net hakediş</span>
           </div>
         </div>
 
         <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#8E8E93] font-medium block">Net Platform Komisyonu (%{tariffs.platformCommissionRate})</span>
-          <div className="text-2xl sm:text-3xl font-bold font-mono text-[#0A84FF] tracking-tight">
+          <span className="text-xs text-[#94A3B8] font-medium block">M0 Sipariş Komisyonu (%{tariffs.platformCommissionRate})</span>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-[#0A84FF] tracking-tight">
             {platformStats.platformCommissionEarned.toLocaleString('tr-TR')} ₺
           </div>
-          <span className="text-[11px] text-[#8E8E93] block">
-            Doğrudan ana banka hesabına aktarılan
+          <span className="text-[11px] text-[#94A3B8] block">
+            Yolculuk ve paket başına %0 kesinti garantisi
           </span>
         </div>
 
@@ -571,15 +562,13 @@ export const AdminDashboard: React.FC = () => {
                 {/* 1. Üst Bütünleşik Komuta Başlığı & Canlı Durum Filtreleri */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#0071E3]/20 text-[#0A84FF] border border-[#0071E3]/30 font-mono text-[10px] font-bold">
-                        BÜTÜNLEŞİK KOMUTA & SEVK MERKEZİ
-                      </span>
-                      <h2 className="text-lg font-bold text-white font-display">
-                        Canlı Filo Radarı & Hızlı Aksiyon Masası
-                      </h2>
+                    <div className="text-[11px] font-semibold text-[#0A84FF] tracking-wide mb-0.5">
+                      Bütünleşik Komuta ve Sevk Merkezi
                     </div>
-                    <p className="text-xs text-[#8E8E93] mt-1">
+                    <h2 className="text-lg font-bold text-white font-display">
+                      Canlı Filo Radarı & Hızlı Aksiyon Masası
+                    </h2>
+                    <p className="text-xs text-[#94A3B8] mt-1">
                       Kuryelerin anlık konum ve durumları (boşta, seferde, molada) sevk masasıyla senkronize canlı yönetilir.
                     </p>
                   </div>

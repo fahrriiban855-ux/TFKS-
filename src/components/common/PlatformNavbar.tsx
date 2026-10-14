@@ -148,8 +148,8 @@ export const PlatformNavbar: React.FC = () => {
     },
     {
       id: 'wireframes',
-      label: '42 Ekran & TFKŞ',
-      shortLabel: '42 Ekran',
+      label: '42 Ekran Kataloğu',
+      shortLabel: 'Katalog',
       icon: <Layers className="w-4 h-4" />,
     },
   ];
@@ -159,10 +159,10 @@ export const PlatformNavbar: React.FC = () => {
     const res = await syncWithServer();
     setIsSyncing(false);
     showNotification({
-      title: res.synced ? 'Hibrit Sunucu Senkronize Edildi' : 'Çevrimdışı (Local + Outbox Modu)',
+      title: res.synced ? 'Hibrit Sunucu Senkronize Edildi' : 'Yerel Depolama & Outbox Koruması Aktif',
       message: res.synced
         ? `Express API (/api/state/sync) ve yerel depolama senkronize edildi. (${res.outboxFlushed} kuyruk işlemi aktarıldı).`
-        : 'Veriler localStorage ve BroadcastChannel üzerinde güvende.',
+        : 'İş/finans yazma uçları güvenli sunucu doğrulaması yapılandırılana kadar kapalıdır (503). Verileriniz yerel depolama (localStorage) ve Outbox kuyruğunda korundu.',
       type: res.synced ? 'success' : 'info',
     });
   };
