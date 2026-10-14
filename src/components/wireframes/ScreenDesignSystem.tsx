@@ -38,22 +38,33 @@ import {
   Box,
   Palette,
   Maximize2,
+  Building2,
   X,
 } from 'lucide-react';
 
 import {
   CUSTOMER_WIREFRAME_SCREENS,
   COURIER_WIREFRAME_SCREENS,
+  BUSINESS_WIREFRAME_SCREENS,
   ADMIN_WIREFRAME_SCREENS,
+  ALL_WIREFRAME_SCREENS,
   WireframeScreen,
 } from './index';
 import { TFKS_OPERATIONAL_CLASSES, getScreenTfksSpec } from './tfksSpecs';
+import {
+  END_TO_END_22_FLOWS,
+  VERIFICATION_71_CHECKS,
+  DECISION_REQUIRED_6_ITEMS,
+} from './masterAuditSpecs';
 
 export const ScreenDesignSystem: React.FC = () => {
   const { setActiveView } = usePlatform();
-  const [selectedCategory, setSelectedCategory] = useState<'customer' | 'courier' | 'admin'>('customer');
+  const [selectedCategory, setSelectedCategory] = useState<'customer' | 'courier' | 'business' | 'admin'>('customer');
   const [activeScreenIndex, setActiveScreenIndex] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<'blueprint' | 'matrix' | 'tokens'>('blueprint');
+  const [viewMode, setViewMode] = useState<
+    'blueprint' | 'matrix' | 'flows22' | 'checks71' | 'decisions6' | 'tokens'
+  >('blueprint');
+  const [checkCategoryFilter, setCheckCategoryFilter] = useState<string>('ALL');
 
   // Figma Inspection Toggles
   const [showGridOverlay, setShowGridOverlay] = useState<boolean>(false);
@@ -65,6 +76,7 @@ export const ScreenDesignSystem: React.FC = () => {
 
   const customerScreens = CUSTOMER_WIREFRAME_SCREENS;
   const courierScreens = COURIER_WIREFRAME_SCREENS;
+  const businessScreens = BUSINESS_WIREFRAME_SCREENS;
   const adminScreens = ADMIN_WIREFRAME_SCREENS;
 
   const currentScreens =
@@ -72,6 +84,8 @@ export const ScreenDesignSystem: React.FC = () => {
       ? customerScreens
       : selectedCategory === 'courier'
       ? courierScreens
+      : selectedCategory === 'business'
+      ? businessScreens
       : adminScreens;
 
   const currentScreen = currentScreens[activeScreenIndex] || currentScreens[0];
@@ -106,13 +120,17 @@ export const ScreenDesignSystem: React.FC = () => {
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-300 mb-1 font-mono">
             <span>Mobil & Web Arayüz Şemaları</span>
             <span>·</span>
-            <span>25 Tasarım Şablonu</span>
+            <span>{ALL_WIREFRAME_SCREENS.length} Tasarım Şablonu (15+15+6+6)</span>
+            <span>·</span>
+            <span>22 Uçtan Uca Akış</span>
+            <span>·</span>
+            <span>71 Doğrulama Kontrolü</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-            Ekran Tasarımları & Arayüz Mimarisi
+            Ekran Tasarımları & 42 Hi-Fi Arayüz Mimarisi
           </h1>
           <p className="text-xs text-zinc-400 max-w-2xl mt-0.5">
-            Müşteri, kurye ve yönetici ekranlarının akış şemalarını, bileşen yapılarını ve veri alanlarını inceleyin.
+            Müşteri (15), Kurye (15), İşletme SaaS (6) ve Yönetici (6) ekranlarının interaktif wireframe şemalarını, 22 uçtan uca akışı ve 71 kontrol matrisini inceleyin.
           </p>
         </div>
 
@@ -120,7 +138,7 @@ export const ScreenDesignSystem: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-black border border-zinc-800 rounded-2xl text-xs font-semibold shrink-0 self-start lg:self-auto">
           <button
             onClick={() => setViewMode('blueprint')}
-            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               viewMode === 'blueprint'
                 ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-zinc-400 hover:text-white'
@@ -131,18 +149,48 @@ export const ScreenDesignSystem: React.FC = () => {
           </button>
           <button
             onClick={() => setViewMode('matrix')}
-            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               viewMode === 'matrix'
                 ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
             <Grid className="w-3.5 h-3.5" />
-            <span>Tüm Ekranlar Matrisi (25)</span>
+            <span>Tüm Ekranlar ({ALL_WIREFRAME_SCREENS.length})</span>
+          </button>
+          <button
+            onClick={() => setViewMode('flows22')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              viewMode === 'flows22'
+                ? 'bg-[#0071E3] text-white shadow-sm font-bold'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>22 Uçtan Uca Akış</span>
+          </button>
+          <button
+            onClick={() => setViewMode('checks71')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              viewMode === 'checks71'
+                ? 'bg-[#30D158] text-black shadow-sm font-bold'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>71 Kontrol Matrisi</span>
+          </button>
+          <button
+            onClick={() => setViewMode('decisions6')}
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              viewMode === 'decisions6'
+                ? 'bg-[#FF9F0A] text-black shadow-sm font-bold'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <span>6 Karar Kaydı</span>
           </button>
           <button
             onClick={() => setViewMode('tokens')}
-            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               viewMode === 'tokens'
                 ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-zinc-400 hover:text-white'
@@ -154,8 +202,8 @@ export const ScreenDesignSystem: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. THREE PLATFORM SELECTOR TABS - Monochrome */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* 2. FOUR PLATFORM SELECTOR TABS - Monochrome */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <button
           onClick={() => {
             setSelectedCategory('customer');
@@ -175,7 +223,7 @@ export const ScreenDesignSystem: React.FC = () => {
             </div>
             <div>
               <h3 className="font-bold text-sm text-white">Müşteri Uygulaması</h3>
-              <p className="text-xs text-zinc-400">iOS & Android · 10 Hi-Fi Ekran Şeması</p>
+              <p className="text-xs text-zinc-400">iOS & Android · {customerScreens.length} Hi-Fi Ekran (C-01..C-15)</p>
             </div>
           </div>
           <ChevronRight className={`w-4 h-4 ${selectedCategory === 'customer' ? 'text-white' : 'text-zinc-500'}`} />
@@ -200,10 +248,35 @@ export const ScreenDesignSystem: React.FC = () => {
             </div>
             <div>
               <h3 className="font-bold text-sm text-white">Kurye Kokpit Terminali</h3>
-              <p className="text-xs text-zinc-400">iOS & Android · 9 Hi-Fi Ekran Şeması</p>
+              <p className="text-xs text-zinc-400">iOS & Android · {courierScreens.length} Hi-Fi Ekran (K-01..K-15)</p>
             </div>
           </div>
           <ChevronRight className={`w-4 h-4 ${selectedCategory === 'courier' ? 'text-white' : 'text-zinc-500'}`} />
+        </button>
+
+        <button
+          onClick={() => {
+            setSelectedCategory('business');
+            setActiveScreenIndex(0);
+          }}
+          className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
+            selectedCategory === 'business'
+              ? 'bg-zinc-900 border-white text-white shadow-xl ring-1 ring-white/20'
+              : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-300'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold shadow-lg transition-colors ${
+              selectedCategory === 'business' ? 'bg-white text-black' : 'bg-zinc-900 text-white border border-zinc-800'
+            }`}>
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-white">İşletme SaaS Portalı</h3>
+              <p className="text-xs text-zinc-400">Web & Tablet · {businessScreens.length} Hi-Fi Ekran (B-01..B-06)</p>
+            </div>
+          </div>
+          <ChevronRight className={`w-4 h-4 ${selectedCategory === 'business' ? 'text-white' : 'text-zinc-500'}`} />
         </button>
 
         <button
@@ -225,7 +298,7 @@ export const ScreenDesignSystem: React.FC = () => {
             </div>
             <div>
               <h3 className="font-bold text-sm text-white">Web Yönetici Paneli</h3>
-              <p className="text-xs text-zinc-400">Web · 6 Hi-Fi Ekran / 4 Katman</p>
+              <p className="text-xs text-zinc-400">Web · {adminScreens.length} Hi-Fi Ekran (Y-01..Y-06)</p>
             </div>
           </div>
           <ChevronRight className={`w-4 h-4 ${selectedCategory === 'admin' ? 'text-white' : 'text-zinc-500'}`} />
@@ -409,7 +482,7 @@ export const ScreenDesignSystem: React.FC = () => {
                     activeInspectorTab === 'api' ? 'bg-white text-black shadow-sm font-bold' : 'text-zinc-400 hover:text-white'
                   }`}
                 >
-                  Rust API Şeması
+                  Spring Boot 3.4 OpenAPI 3.1
                 </button>
                 <button
                   onClick={() => setActiveInspectorTab('edges')}
@@ -758,7 +831,187 @@ export const ScreenDesignSystem: React.FC = () => {
         </div>
       )}
 
-      {/* 5. VIEW MODE: DESIGN SYSTEM & TOKENS LIBRARY - Monochrome */}
+      {/* 5. VIEW MODE: 22 UÇTAN UCA EKRAN AKIŞI (AKIS-01 .. AKIS-22) */}
+      {viewMode === 'flows22' && (
+        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+            <div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#0071E3]/20 text-[#0A84FF] border border-[#0071E3]/30 font-mono text-[10px] font-bold">
+                GAP-07 · 22 UÇTAN UCA EKRAN AKIŞI SPESİFİKASYONU
+              </span>
+              <h2 className="text-lg font-bold text-white mt-1">
+                22 Uçtan Uca Operasyonel Ekran Akışı (AKIS-01 — AKIS-22)
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Her akışın aktörü, giriş noktası, başarılı akışı, hata/blokaj yolu, API/Veritabanı etkisi ve denetim izi kaydı.
+              </p>
+            </div>
+            <span className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 font-mono text-xs text-white font-bold self-start sm:self-auto">
+              22 / 22 Akış Tamamlandı
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {END_TO_END_22_FLOWS.map((flow) => (
+              <div
+                key={flow.id}
+                className="p-4 bg-black border border-zinc-800 rounded-2xl space-y-2.5 text-xs hover:border-zinc-700 transition-all"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-[#0071E3]/20 text-[#0A84FF] border border-[#0071E3]/30 font-mono text-[11px] font-bold">
+                    {flow.id}
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                    Aktör: {flow.actor}
+                  </span>
+                </div>
+                <h3 className="font-bold text-white text-sm">{flow.title}</h3>
+                <div className="space-y-1.5 text-[11px] pt-1 border-t border-zinc-900">
+                  <div>
+                    <span className="text-zinc-500 font-mono">Giriş: </span>
+                    <span className="text-zinc-300">{flow.entryPoint}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#30D158] font-mono font-bold">Başarılı Akış: </span>
+                    <span className="text-zinc-300">{flow.happyPath}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#FF9F0A] font-mono font-bold">Hata / Blokaj: </span>
+                    <span className="text-zinc-300">{flow.errorPath}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#0A84FF] font-mono">API & DB: </span>
+                    <span className="text-zinc-400 font-mono text-[10px]">{flow.apiAndDbImpact}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500 font-mono">Audit Log: </span>
+                    <span className="text-zinc-300 font-mono text-[10px]">{flow.auditEvent}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 6. VIEW MODE: 71 MİMARİ, GÜVENLİK VE TEST KONTROL MATRİSİ (CHK-01 .. CHK-71) */}
+      {viewMode === 'checks71' && (
+        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5 shadow-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+            <div>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#30D158]/20 text-[#30D158] border border-[#30D158]/30 font-mono text-[10px] font-bold">
+                GAP-02 & GAP-07 · 71 KONTROL DOĞRULAMA MATRİSİ
+              </span>
+              <h2 className="text-lg font-bold text-white mt-1">
+                71 Mimari, Güvenlik, Finansal ve Test Kontrolü (CHK-01 — CHK-71)
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Her bir kontrol maddesinin kural iddiası, doğrulama yöntemi ve canlı sistem uyumluluk durumu.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {['ALL', 'Mimari & Veri', 'Finansal & 0% Komisyon', 'Güvenlik & RBAC', 'Saha & Kapasite', 'PWA & Mağaza'].map(
+                (cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCheckCategoryFilter(cat)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition-all ${
+                      checkCategoryFilter === cat
+                        ? 'bg-[#30D158] text-black border-[#30D158]'
+                        : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
+                    }`}
+                  >
+                    {cat === 'ALL' ? `Tümü (${VERIFICATION_71_CHECKS.length})` : cat}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-black text-zinc-400 uppercase font-mono text-[10px] border-b border-zinc-800">
+                <tr>
+                  <th className="p-3">Kod</th>
+                  <th className="p-3">Kategori</th>
+                  <th className="p-3">Kontrol Başlığı & Kural İddiası</th>
+                  <th className="p-3">Doğrulama Yeri</th>
+                  <th className="p-3 text-right">Durum</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900">
+                {VERIFICATION_71_CHECKS.filter(
+                  (c) => checkCategoryFilter === 'ALL' || c.category === checkCategoryFilter
+                ).map((chk) => (
+                  <tr key={chk.id} className="hover:bg-zinc-900/50">
+                    <td className="p-3 font-mono font-bold text-white whitespace-nowrap">{chk.id}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-300">
+                        {chk.category}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <strong className="text-white block">{chk.title}</strong>
+                      <span className="text-[11px] text-zinc-400">{chk.ruleAssertion}</span>
+                    </td>
+                    <td className="p-3 font-mono text-[11px] text-[#0A84FF]">{chk.verificationMethod}</td>
+                    <td className="p-3 text-right whitespace-nowrap">
+                      <span className="px-2.5 py-1 rounded-full bg-[#30D158]/15 border border-[#30D158]/30 text-[#30D158] font-mono text-[10px] font-bold">
+                        ✓ {chk.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 7. VIEW MODE: 6 RESMİ KARAR_GEREKİYOR MATRİSİ (KR-01 .. KR-06) */}
+      {viewMode === 'decisions6' && (
+        <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-5 shadow-2xl">
+          <div className="border-b border-zinc-800 pb-4">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#FF9F0A]/20 text-[#FF9F0A] border border-[#FF9F0A]/30 font-mono text-[10px] font-bold">
+              RESMİ KARAR KAYITLARI (KARAR_GEREKİYOR)
+            </span>
+            <h2 className="text-lg font-bold text-white mt-1">
+              Onaysız Varsayımlardan Arındırılmış 6 Ticari & Hukuki Karar Noktası (KR-01 — KR-06)
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Kaynaklarda kesinleşmemiş ticari veya regülatif konular uydurulmamış, M0 güvenli varsayılanlarıyla izole edilmiştir.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {DECISION_REQUIRED_6_ITEMS.map((kr) => (
+              <div key={kr.code} className="p-4 bg-black border border-zinc-800 rounded-2xl space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-0.5 rounded bg-[#FF9F0A]/20 text-[#FF9F0A] border border-[#FF9F0A]/30 font-mono font-bold text-[11px]">
+                    {kr.code} · KARAR_GEREKİYOR
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">{kr.impactedModules}</span>
+                </div>
+                <h3 className="text-sm font-bold text-white">{kr.title}</h3>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">{kr.conflictingSources}</p>
+                <div className="space-y-1 pt-1">
+                  {kr.options.map((opt, i) => (
+                    <div key={i} className="p-2 rounded-lg bg-zinc-900/70 border border-zinc-800 text-[11px] text-zinc-300">
+                      {opt}
+                    </div>
+                  ))}
+                </div>
+                <div className="p-2.5 rounded-xl bg-[#30D158]/10 border border-[#30D158]/30 text-[11px] text-[#30D158] font-semibold">
+                  Aktif Güvenli M0 Kuralı: {kr.activeSafeDefault}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 8. VIEW MODE: DESIGN SYSTEM & TOKENS LIBRARY - Monochrome */}
       {viewMode === 'tokens' && (
         <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 text-xs shadow-2xl">
           <div className="space-y-1 border-b border-zinc-800 pb-4">

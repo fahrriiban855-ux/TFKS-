@@ -197,7 +197,73 @@ export const TFKS_OPERATIONAL_CLASSES: TfksOperationalClassInfo[] = [
 export function getScreenTfksSpec(screenId: string, title: string, category: string): TfksMasterSpec {
   const isCustomer = category === 'customer';
   const isCourier = category === 'courier';
+  const isBusiness = category === 'business';
   const isAdmin = category === 'admin';
+
+  if (isBusiness) {
+    return {
+      purpose: 'İşletme ve esnafın %0 sipariş komisyonuyla çoklu paket (Multi-Drop) dağıtımı yapmasını, 14 günlük ücretsiz tanışma kampanyasını ve Havale/EFT abonelik döngüsünü yönetmesini sağlamak.',
+      whatItDoes: 'VKN doğrulamasıyla tek seferlik FREE_INTRO açar, aynı koridordaki paketleri birleştirir (BatchRoutePlan), mutfak hazırlık süresine göre otomatik kurye atar ve Havale/EFT dekontunu MANUAL_APPROVAL kuyruğuna iletir.',
+      howItDoes: [
+        '1. VKN/TCKN ve IBAN tekilliğini doğrulayarak 14 günlük FREE_INTRO kampanya sayacını başlatır.',
+        '2. Bekleyen paketleri coğrafi koridorlara göre gruplayarak %28-%36 mesafe tasarruflu BatchRoutePlan üretir.',
+        '3. Mutfak hazırlık süresine (prepTimeMinutes) göre kuryeyi paket hazır olmadan 2 dk önce kapıda olacak şekilde çağırır.',
+        '4. Dış kanallardan (Yemeksepeti, Getir, Trendyol, POS) gelen webhook siparişlerini %0 komisyonlu 18 alanlı FeeSnapshot ile mühürler.',
+        '5. Tanışma süresi sonunda otomatik kart çekimi yapmaz; Havale/EFT referans kodu (wire_reference_code) ile Admin onayına sunar.',
+      ],
+      output: 'İşletmeye %0 komisyonlu teslimat kanıtları (PoD), optimize çoklu rota planı ve şeffaf haftalık sabit abonelik mutabakatı üretir.',
+      weakVsStrong: {
+        weak: 'İşletme panelden kurye çağırır ve haftalık ücret öder.',
+        weakReason: 'Tanışma süresi sonunda otomatik çekim yasağı, VKN tekilliği, çoklu paket koridor birleştirmesi ve LIMITED_ACCESS veri koruma garantisi belirtilmemiştir.',
+        strong: 'İşletme VKN doğrulamasıyla 14 gün ücretsiz başlar; sipariş başı %0 komisyon öder. Süre bitiminde otomatik çekim yapılmaz; Havale/EFT dekontu Admin tarafından @Version kilidiyle onaylanır. Yenilenmezse LIMITED_ACCESS modunda geçmiş veriler silinmeden korunur.',
+      },
+      buttonDirectives: [
+        {
+          name: 'Çoklu Paket Rotası (Multi-Drop) Oluştur ve Kurye Ata',
+          role: 'İşletme Sahibi / Sevkiyat Görevlisi (canCreateOrders)',
+          precondition: 'İşletme aboneliği FREE_INTRO, ACTIVE_MEMBERSHIP veya GRACE_PERIOD durumunda olmalıdır.',
+          action: 'Seçilen 2-10 paketi aynı koridorda birleştirir, her durak için 4 haneli deliveryCode üretir ve kurye atar.',
+          validation: 'Tenant Guard ile alt kullanıcının yetkisi ve paket ağırlık sınırı kontrol edilir.',
+          errorMessage: 'LIMITED_ACCESS veya SUSPENDED durumunda toplu işletme çağrısı yapılamaz; bireysel kurye köprüsünü kullanınız.',
+          successResult: 'BatchRoutePlan DISPATCHED durumuna geçer ve 18 alanlı %0 komisyonlu FeeSnapshot üretilir.',
+          auditLog: 'batchId, businessId, packageCount, kmSavedPercent ve snapshotHash AuditLog zincirine mühürlenir.',
+        },
+        {
+          name: 'Havale / EFT Dekont Bildirimi Gönder',
+          role: 'İşletme Sahibi / Muhasebe',
+          precondition: 'Geçerli banka referans kodu (wire_reference_code) ve dekont dosyası girilmiş olmalıdır.',
+          action: 'Abonelik durumunu PAYMENT_PENDING yapar ve Admin A-03 onay masasına düşürür.',
+          validation: 'Mükerrer referans kodu veya negatif/sıfır tutar reddedilir.',
+          errorMessage: 'Geçersiz veya daha önce kullanılmış banka referans kodu (422 DUPLICATE_WIRE_REF).',
+          successResult: 'Dekont bildirimi kaydedilir ve Admin MANUAL_APPROVAL kuyruğuna eklenir.',
+          auditLog: 'noticeId, businessId, wireReferenceCode ve amountTl SHA-256 mührüyle loglanır.',
+        },
+      ],
+      dataAndValidation: [
+        { field: 'businessPerOrderCommissionFee', type: 'currency (TRY)', rule: 'Her zaman 0.00 ₺ (%0) olmalıdır', riskIfNotValidated: 'M0 sıfır komisyon anayasası ihlal edilir.' },
+        { field: 'wireReferenceCode', type: 'string (4-64 krk)', rule: 'Tekil banka işlem referansı', riskIfNotValidated: 'Aynı dekontla birden fazla hafta ücretsiz abonelik açılır.' },
+        { field: 'tenantBusinessId', type: 'UUID / string', rule: 'JWT içindeki işletme kimliği ile eşleşmeli', riskIfNotValidated: 'Başka işletmenin sipariş ve fatura verilerine erişilir (IDOR).' },
+      ],
+      authorityAndBlockage: {
+        authorizedRoles: ['owner', 'branch_manager', 'dispatch_staff', 'accountant'],
+        secondaryApprovalRequired: true,
+        blockageTrigger: 'GRACE_PERIOD (3 gün) sonunda ödeme yapılmaması durumunda LIMITED_ACCESS kilidi.',
+        blockageResolver: 'Havale/EFT dekontunun Admin tarafından MANUAL_APPROVAL ile onaylanması.',
+      },
+      auditLogContract: {
+        loggedEvents: ['BUSINESS_REGISTERED', 'BATCH_ROUTE_CREATED', 'B2B_WEBHOOK_INGESTED', 'WIRE_NOTICE_SUBMITTED'],
+        fieldsCaptured: ['businessId', 'subUserId', 'subscriptionStatus', 'wireReferenceCode', 'sealHash'],
+        immutableSeal: true,
+      },
+      testAndAcceptance: {
+        testName: 'İşletme %0 Sipariş Komisyonu ve Tanışma Bitimi Otomatik Çekim Yasağı Testi',
+        givenCondition: 'İşletmenin 14 günlük FREE_INTRO süresi Europe/Istanbul 00:00 itibarıyla dolmuştur.',
+        whenAction: 'Sistem durum kontrolü çalıştırır ve işletme yeni BUSINESS_DELIVERY açmayı dener.',
+        thenExpected: 'Kredi kartından otomatik çekim yapılmaz; durum PLAN_SELECTION_REQUIRED olur ve dekont yükleme ekranı açılır.',
+        acceptanceCriteria: 'Otomatik çekim = 0.00 ₺ olmalı; geçmiş sipariş arşivi %100 erişilebilir kalmalıdır.',
+      },
+    };
+  }
 
   if (screenId === 'C02' || screenId.includes('HomeMap')) {
     return {

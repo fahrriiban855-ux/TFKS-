@@ -94,24 +94,24 @@ Sipariş olmayan saatlerde kurye maliyeti sıfırdır. Yağmurlu ve yoğun saatl
 
 const FAQS = [
   {
-    q: 'Motosiklet yolculuğu (Moto TAG) yasal mı ve güvenli midir?',
-    a: 'Evet. Platformumuz 6698 sayılı KVKK, Tüketici Kanunu ve Karayolları Trafik Kanunu çerçevesinde bağımsız sürücülerle yolcuları güvenle buluşturan teknolojik bir platformdur. Her yolculuk başlangıcında PIN doğrulaması yapılır ve seyahat boyunca ferdi kaza teminatı geçerlidir.',
+    q: 'M0 ilk lansmanda hangi hizmetler sunuluyor? Motosikletli yolcu (motor taksi) aktif mi?',
+    a: 'İlk lansman iki ana hizmetle birlikte yapılır: 1. Taksi (TAXI_RIDE) ve 2. Kurye / Teslimat (PERSONAL_DELIVERY & MERCHANT_DELIVERY). Motosikletli yolcu (MOTO_PASSENGER_RIDE) gelecek hizmettir; İl UKOME / UGETAM yazılı yasal teyidi alınmadan M0 sürümünde aktif edilmez.',
   },
   {
-    q: 'Yolculukta kask ve bone temin ediliyor mu?',
-    a: 'Kesinlikle evet. MotoPilot kuralı uyarınca her sürücü, uluslararası ECE 22.06 güvenlik standardına uygun temiz 2. kask ve hijyenik tek kullanımlık saç bonesi taşımak zorundadır.',
+    q: 'Taksi ve kurye çağrılarında komisyon veya gizli hizmet bedeli var mı?',
+    a: 'Hayır. M0 Sıfır Komisyon İlkesi (M0-ZERO-COMMISSION-2026-V1) uyarınca taksi yolcusundan, taksi şoföründen, bireysel göndericiden ve kuryeden %0 platform komisyonu alınır. Ödenen tutarın %100’ü doğrudan sürücüye/kuryeye aktarılır.',
   },
   {
-    q: 'Ücret nasıl hesaplanır ve ödeme yöntemleri nelerdir?',
-    a: 'Ücret açılış ve kat edilen kilometreye göre şeffaf olarak önceden hesaplanır. Trafik sıkışıklığında bekleme zammı uygulanmaz. Kredi kartı, banka kartı veya uygulama içi MotoPilot Cüzdan ile tek tıkla güvenle ödeyebilirsiniz.',
+    q: 'Esnaf ve işletmeler için ücretlendirme ve 2 hafta ücretsiz kampanya nasıl işler?',
+    a: 'İşletmelerden sipariş başına yüzdesel komisyon (%0) kesilmez. Yeni katılan doğrulanmış işletmeler (VKN/TCKN ve IBAN kontrolü ile tek seferlik) 14 gün boyunca ücretsiz tanışma kampanyasından yararlanır. Süre sonunda otomatik ücretli yenileme yapılmaz; işletmenin açık onayıyla sabit aylık üyeliğe geçilir.',
   },
   {
-    q: 'Sürücü olmak için hangi şartlar aranır?',
-    a: 'En az A2 sınıfı geçerli sürücü belgesi, 2018 model ve üzeri bakımlı motosiklet, temiz adli sicil kaydı, yolcu için 2. kask ve kurye çantası gereklidir. Başvurular 24 saatte incelenir.',
+    q: 'Sürücü veya kurye olmak için hangi şartlar aranır?',
+    a: 'Geçerli sürücü belgesi, araç ruhsatı, temiz adli sicil kaydı ve hizmet standartlarına uygun ekipman gereklidir. Onaylanan tüm sürücü ve kuryeler %0 komisyon (%100 net hakediş) ile çalışır.',
   },
   {
     q: 'İşletmeler ve restoranlar için toplu teslimat nasıl çalışır?',
-    a: 'İşletme panelimizden tek seferde onlarca teslimat noktası girebilir veya API ile siparişlerinizi otomatik aktarabilirsiniz. En yakın kurye şubenize gelerek paketleri teslim alır, her teslimatta alıcıya SMS ile kod gider.',
+    a: 'İşletme panelimizden tek seferde 5 teslimat noktasına kadar çoklu dağıtım (Multi-Drop) oluşturabilir veya B2B API ile siparişlerinizi otomatik aktarabilirsiniz. Sipariş başı %0 komisyon uygulanır.',
   },
 ];
 
@@ -149,23 +149,23 @@ export const WebsiteMainView: React.FC = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10 space-y-10 text-center">
           {/* Subtle Editorial Kicker (Zero-Pill Rule) */}
           <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#0A84FF]">
-            <span>İstanbul Geneli 7/24 Aktif</span>
+            <span>M0 Lansman: 1. Taksi & 2. Kurye / Teslimat</span>
             <span aria-hidden="true">·</span>
-            <span>Ortalama 4 Dakikada Kapınızda</span>
+            <span>%0 Platform Komisyonu</span>
             <span aria-hidden="true">·</span>
-            <span>Trafiksiz Varış Güvencesi</span>
+            <span>Esnafa 2 Hafta Ücretsiz Başlangıç</span>
           </div>
 
           {/* Display Headline */}
           <div className="space-y-4 max-w-4xl mx-auto">
             <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white leading-[1.08] text-balance">
-              İstanbul Trafiğinde Beklemeyin. <br />
+              Adil Ulaşım ve Teslimat. <br />
               <span className="bg-gradient-to-r from-white via-zinc-200 to-[#0A84FF] bg-clip-text text-transparent">
-                Motosiklet Yolcu ve Hızlı Kurye.
+                %0 Komisyonlu Taksi ve Kurye Ağı.
               </span>
             </h1>
             <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-              Köprü ve boğaz trafiğini arkada bırakın. Güvenli ECE 22.06 kask donanımlı motosikletle varış noktanıza otomobilden 3 kat daha hızlı ulaşın ya da acil paketlerinizi 30 dakikada teslim ettirin.
+              Şoför ve kuryeyi sömürmeyen, esnafın yanında duran çok platformlu ulaşım ve teslimat ekosistemi. Taksi ve kurye çağrılarında %0 komisyon alınır; ödenen tutarın %100'ü doğrudan emekçiye aktarılır.
             </p>
           </div>
 
@@ -176,7 +176,7 @@ export const WebsiteMainView: React.FC = () => {
               className="px-6 py-4 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs sm:text-sm rounded-2xl shadow-[0_4px_24px_rgba(0,113,227,0.45)] transition-all flex items-center gap-2 active:scale-95"
             >
               <Bike className="w-4 h-4 stroke-[2.2]" />
-              <span>Hemen Yolculuk Başlat</span>
+              <span>Taksi veya Kurye Çağır</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -192,27 +192,27 @@ export const WebsiteMainView: React.FC = () => {
               onClick={() => setShowDriverModal(true)}
               className="px-6 py-4 bg-[#30D158]/15 hover:bg-[#30D158]/25 border border-[#30D158]/35 text-[#30D158] font-bold text-xs sm:text-sm rounded-2xl transition-all flex items-center gap-2 active:scale-95"
             >
-              <span>Sürücü Olarak Başvur</span>
+              <span>%0 Komisyonla Sürücü / Kurye Ol</span>
             </button>
           </div>
 
           {/* Trust Metrics Strip (Claim-to-Proof Adjacency) */}
           <div className="pt-6 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto border-t border-white/[0.08] text-left">
             <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="text-2xl font-black font-mono text-white">14 Dk</div>
-              <div className="text-[11px] text-[#8E8E93] mt-0.5">Beşiktaş - Kadıköy Geçişi</div>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="text-2xl font-black font-mono text-[#30D158]">ECE 22.06</div>
-              <div className="text-[11px] text-[#8E8E93] mt-0.5">Onaylı 2. Kask & Bone Şartı</div>
+              <div className="text-2xl font-black font-mono text-[#30D158]">%0</div>
+              <div className="text-[11px] text-[#8E8E93] mt-0.5">Taksi & Kurye Sipariş Komisyonu</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
               <div className="text-2xl font-black font-mono text-white">%100</div>
-              <div className="text-[11px] text-[#8E8E93] mt-0.5">Ferdi Kaza Sigortası Teminatı</div>
+              <div className="text-[11px] text-[#8E8E93] mt-0.5">Doğrudan Şoför & Kurye Hakedişi</div>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="text-2xl font-black font-mono text-[#0A84FF]">0850</div>
-              <div className="text-[11px] text-[#8E8E93] mt-0.5">7/24 Canlı Destek ve İzleme</div>
+              <div className="text-2xl font-black font-mono text-[#BF5AF2]">14 Gün</div>
+              <div className="text-[11px] text-[#8E8E93] mt-0.5">Esnafa Ücretsiz Tanışma Paketi</div>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="text-2xl font-black font-mono text-[#0A84FF]">7/24</div>
+              <div className="text-[11px] text-[#8E8E93] mt-0.5">PIN Doğrulamalı Canlı Takip</div>
             </div>
           </div>
         </div>
@@ -295,26 +295,26 @@ export const WebsiteMainView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Card 1: Moto TAG Yolcu */}
+            {/* Card 1: Taksi (TAXI_RIDE) */}
             <div className="p-7 rounded-[32px] bg-[#161618] border border-white/[0.08] hover:border-[#0A84FF]/40 transition-all flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#0071E3]/20 border border-[#0071E3]/30 flex items-center justify-center text-[#0A84FF]">
                   <Bike className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-bold text-white">Moto TAG — Yolcu Taşımacılığı</h3>
+                  <h3 className="text-lg font-bold text-white">1. Taksi (TAXI_RIDE — %0 Komisyon)</h3>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Trafikte saatlerce beklemeye son. İki yaka arasında veya merkezi arterlerde hızlı, konforlu ve güvenli motosiklet yolculuğu.
+                    İlk lansman ana hizmetimiz. Yolcudan ve taksi şoföründen %0 platform komisyonu alınır; ödenen ücretin %100'ü şoföre kalır.
                   </p>
                 </div>
                 <ul className="space-y-2 text-xs text-zinc-300">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>ECE 22.06 onaylı kask ve hijyenik saç bonesi</span>
+                    <span>%0 Platform Komisyonu & %100 Şoför Hakedişi</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>PIN kodlu biniş doğrulaması ve kaza sigortası</span>
+                    <span>PIN kodlu biniş doğrulaması ve şeffaf tarife</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
@@ -327,27 +327,27 @@ export const WebsiteMainView: React.FC = () => {
                 onClick={() => setActiveView('customer')}
                 className="w-full py-3.5 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
               >
-                <span>Motosiklet Çağır</span>
+                <span>Hemen Taksi Çağır</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Card 2: Express Paket Kurye */}
+            {/* Card 2: Bireysel Kurye (PERSONAL_DELIVERY) */}
             <div className="p-7 rounded-[32px] bg-[#161618] border border-white/[0.08] hover:border-[#30D158]/40 transition-all flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#30D158]/20 border border-[#30D158]/30 flex items-center justify-center text-[#30D158]">
                   <Package className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-bold text-white">Express Paket Kurye</h3>
+                  <h3 className="text-lg font-bold text-white">2. Bireysel Kurye (PERSONAL_DELIVERY)</h3>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Unutulan anahtar, acil imzalı sözleşme, pasaport veya koli. 30 dakika içinde kapınızdan alınır, adrese doğrudan teslim edilir.
+                    Evrak, anahtar, ilaç veya paket gönderimlerinde göndericiden ve kuryeden %0 komisyon alınır; teslimat ücretinin tamamı kuryeye aktarılır.
                   </p>
                 </div>
                 <ul className="space-y-2 text-xs text-zinc-300">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>Su geçirmez korumalı çanta ile hasarsız taşıma</span>
+                    <span>%0 Platform Komisyonu — %100 Kurye Hakedişi</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
@@ -355,7 +355,7 @@ export const WebsiteMainView: React.FC = () => {
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>Zaman ayarlı (Planlı) kurye çağırma seçeneği</span>
+                    <span>Anlık veya zaman ayarlı (Planlı) kurye çağırma</span>
                   </li>
                 </ul>
               </div>
@@ -369,30 +369,30 @@ export const WebsiteMainView: React.FC = () => {
               </button>
             </div>
 
-            {/* Card 3: İşletme & Restoran Dağıtımı */}
+            {/* Card 3: İşletme & Esnaf Teslimatı (MERCHANT_DELIVERY) */}
             <div className="p-7 rounded-[32px] bg-[#161618] border border-white/[0.08] hover:border-[#BF5AF2]/40 transition-all flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#BF5AF2]/20 border border-[#BF5AF2]/30 flex items-center justify-center text-[#BF5AF2]">
                   <Building className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-bold text-white">İşletme & Restoran Teslimatı</h3>
+                  <h3 className="text-lg font-bold text-white">Esnaf & İşletme Teslimatı (MERCHANT_DELIVERY)</h3>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Restoranlar, e-ticaret siteleri ve eczaneler için kurye istihdam maliyetini sıfırlayan esnek, çoklu teslimat altyapısı.
+                    Esnaf ve küçük işletmelerden sipariş başına yüzdesel komisyon (%0) kesilmez. Yeni işletmelere 2 hafta ücretsiz tanışma kampanyası sunulur.
                   </p>
                 </div>
                 <ul className="space-y-2 text-xs text-zinc-300">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
+                    <span>Sipariş Başı %0 Komisyon + 14 Gün Ücretsiz Başlangıç</span>
+                  </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
                     <span>Tek tıkla çoklu adres dağıtımı (Multi-Drop)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>Yemeksepeti / Getir / Shopify API entegrasyonu</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#30D158] shrink-0" />
-                    <span>Hacme dayalı kademeli komisyon indirimi</span>
+                    <span>Otomatik ücretli yenileme yok; açık onaylı üyelik</span>
                   </li>
                 </ul>
               </div>
@@ -401,7 +401,7 @@ export const WebsiteMainView: React.FC = () => {
                 onClick={() => setShowMerchantModal(true)}
                 className="w-full py-3.5 bg-[#BF5AF2] hover:bg-[#A84EE2] text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
               >
-                <span>Kurumsal Teklif Al</span>
+                <span>2 Hafta Ücretsiz İşletme Kaydı</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -464,12 +464,12 @@ export const WebsiteMainView: React.FC = () => {
               </div>
 
               <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
-                Kendi Motosikletinizle Çalışın. <br />
-                Günlük 2.500+ ₺ Kazanın.
+                %0 Platform Komisyonu İle Çalışın. <br />
+                Kazancınızın %100'ü Sizin Olsun.
               </h2>
 
               <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
-                Vardiya zorunluluğu yok. İster boş saatlerinizde Moto TAG yolcusu taşıyın, ister tam gün paket teslimatı yapın. Şeffaf komisyon ve kazancınızı banka hesabınıza anında FAST ile çekme ayrıcalığı.
+                Şoförü ve kuryeyi sömürmeyen adil platform modeli. Taksi ve kurye seferlerinizde %0 komisyon kesilir; kazancınızın tamamını banka hesabınıza anında FAST ile çekersiniz.
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 text-xs">

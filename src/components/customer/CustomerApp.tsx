@@ -15,6 +15,7 @@ import { PhoneFrame } from '../common/PhoneFrame';
 import { LaunchStrategyMatrix } from '../common/LaunchStrategyMatrix';
 import {
   Bike,
+  Car,
   Package,
   ShoppingBag,
   Store,
@@ -538,8 +539,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                               : 'text-[#8E8E93] hover:text-white'
                           }`}
                         >
-                          <Bike className="w-3.5 h-3.5" />
-                          <span>TAG Yolcu</span>
+                          <Car className="w-3.5 h-3.5" />
+                          <span>1. Taksi</span>
                         </button>
                         <button
                           type="button"
@@ -551,7 +552,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                           }`}
                         >
                           <Package className="w-3.5 h-3.5" />
-                          <span>Moto Kurye</span>
+                          <span>2. Kurye</span>
                         </button>
                       </div>
 
@@ -652,8 +653,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                     >
                       <span>
                         {serviceType === 'motosiklet'
-                          ? 'Beni Götür Talebini Gönder'
-                          : 'Paket Kuryesini Çağır'}
+                          ? 'Taksi Çağır (%0 Komisyon)'
+                          : 'Paket Kuryesini Çağır (%0 Komisyon)'}
                       </span>
                       <ArrowRight className="w-4 h-4 text-white" />
                     </button>
@@ -671,15 +672,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                       <span className="font-bold text-lg text-white">{currentRide.totalFare} ₺</span>
                     </div>
 
-                    {/* Fiyat Ayrıştırması */}
+                    {/* Fiyat Ayrıştırması (%0 Komisyon) */}
                     <div className="p-3 bg-[#2C2C2E]/60 rounded-2xl border border-white/[0.06] text-xs space-y-1.5">
                       <div className="flex justify-between text-[#8E8E93]">
-                        <span>Sürücü Hakedişi:</span>
-                        <span className="text-white font-medium">{currentRide.courierEarnings} ₺</span>
+                        <span>Sürücü / Kurye Net Hakedişi (%100):</span>
+                        <span className="text-[#30D158] font-bold">{currentRide.courierEarnings} ₺</span>
                       </div>
                       <div className="flex justify-between text-[#8E8E93]">
-                        <span>Platform Hizmet Bedeli (%10 + 20 TL):</span>
-                        <span className="text-white font-medium">+{currentRide.platformCommission} ₺</span>
+                        <span>Platform Sipariş Komisyonu (%0):</span>
+                        <span className="text-white font-medium">0 ₺ (Sıfır Komisyon)</span>
                       </div>
                     </div>
 
@@ -775,19 +776,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                       </div>
                     )}
 
-                    {/* Biniş PIN Kodu */}
+                    {/* Biniş / Teslimat PIN Kodu */}
                     {currentRide.status !== 'in_progress' ? (
                       <div className="p-3.5 bg-[#2C2C2E]/70 rounded-2xl border border-white/[0.08] flex items-center justify-between text-xs">
                         <div>
                           <span className="text-[10px] text-[#8E8E93] block font-semibold uppercase tracking-wider">
-                            Biniş Başlatma PIN Kodu:
+                            Güvenli Başlatma PIN Kodu:
                           </span>
                           <span className="text-2xl font-bold tracking-widest text-white font-mono">
                             {currentRide.boardingCode}
                           </span>
                         </div>
                         <span className="text-[11px] text-[#8E8E93] max-w-[140px] text-right leading-tight">
-                          Motosiklete binerken bu 4 haneli kodu iletiniz.
+                          Araca binerken veya paketi teslim ederken bu 4 haneli kodu iletiniz.
                         </span>
                       </div>
                     ) : (
@@ -1004,15 +1005,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                 </div>
               </div>
 
-              {/* Fiyat ve Kurye Çağır */}
+              {/* Fiyat ve Kurye Çağır (%0 Komisyon) */}
               <div className="p-4 bg-[#1C1C1E]/80 backdrop-blur-xl border border-white/[0.08] rounded-[24px] space-y-2 text-xs">
                 <div className="flex justify-between text-[#8E8E93]">
-                  <span>Mesafe & Paket Ücreti:</span>
-                  <span className="text-white font-semibold">{fareEstimate.subtotal} ₺</span>
+                  <span>Mesafe & Paket Ücreti (Kurye Net %100):</span>
+                  <span className="text-[#30D158] font-bold">{fareEstimate.subtotal} ₺</span>
                 </div>
                 <div className="flex justify-between text-[#8E8E93]">
-                  <span>Platform Hizmet Bedeli (%10 + 20 TL):</span>
-                  <span className="text-white font-semibold">+{fareEstimate.platformCommission} ₺</span>
+                  <span>Platform Sipariş Komisyonu (%0):</span>
+                  <span className="text-white font-semibold">0 ₺ (M0 Sıfır Komisyon)</span>
                 </div>
                 <div className="flex justify-between items-center text-sm font-bold text-white pt-2 border-t border-white/[0.08]">
                   <span>Toplam Ödeme:</span>
@@ -1136,8 +1137,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                 </div>
 
                 <div className="p-3.5 bg-[#1C1C1E]/80 border border-white/[0.08] rounded-[20px] text-[11px] text-[#8E8E93] space-y-1">
-                  <span className="font-semibold text-white block">MotoPilot Güvence Modeli</span>
-                  <p>Yolcudan alınan %10 + 20 TL sabit hizmet bedeli ile kesintisiz kaza sigortası ve platform operasyonu sağlanır.</p>
+                  <span className="font-semibold text-white block">M0 Sıfır Komisyon & Adil Hakediş Modeli</span>
+                  <p>Taksi ve kurye çağrılarında yolcudan, göndericiden ve sürücüden %0 platform komisyonu alınır; ödenen tutarın %100'ü doğrudan sürücüye/kuryeye aktarılır.</p>
                 </div>
               </div>
             </div>
@@ -1944,10 +1945,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
               </div>
             </div>
 
-            {/* Kalem Kalem Fiyat Ayrıştırması */}
+            {/* Kalem Kalem Fiyat Ayrıştırması (%0 Komisyon) */}
             <div className="p-3.5 bg-[#2C2C2E]/40 rounded-2xl border border-white/[0.06] space-y-2 text-xs">
-              <span className="text-[10px] text-[#8E8E93] font-semibold uppercase tracking-wider block">
-                Tarife ve Yasal Kesinti Dökümü (Kural 2.6)
+              <span className="text-[10px] text-[#30D158] font-semibold uppercase tracking-wider block">
+                M0 Sıfır Komisyonlu Tarife Dökümü (M0-ZERO-COMMISSION-2026-V1)
               </span>
 
               <div className="flex justify-between text-[#A1A1A6]">
@@ -1965,13 +1966,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
               </div>
 
               <div className="flex justify-between text-[#A1A1A6]">
-                <span>Yolcu Hizmet Bedeli (%10):</span>
-                <span className="font-mono text-white">{fareEstimate.serviceFeePercentAmount} ₺</span>
+                <span>Platform Sipariş Komisyonu (%0):</span>
+                <span className="font-mono text-[#30D158] font-bold">0 ₺</span>
               </div>
 
               <div className="flex justify-between text-[#A1A1A6]">
-                <span>Sabit Platform & Güvence Bedeli:</span>
-                <span className="font-mono text-white">{fareEstimate.serviceFeeFixedAmount} ₺</span>
+                <span>Sabit Platform Hizmet Bedeli:</span>
+                <span className="font-mono text-[#30D158] font-bold">0 ₺</span>
+              </div>
+
+              <div className="flex justify-between text-[#A1A1A6]">
+                <span>Sürücü / Kurye Net Hakedişi (%100):</span>
+                <span className="font-mono text-[#30D158] font-bold">{fareEstimate.courierEarnings} ₺</span>
               </div>
 
               {tariffs.surgeMultiplier > 1 && (
@@ -2104,8 +2110,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ isEmbedded = false }) 
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Bike className="w-4 h-4 text-[#0A84FF]" />
-                  <span>Beni Götür (Harita)</span>
+                  <Car className="w-4 h-4 text-[#0A84FF]" />
+                  <span>Taksi & Kurye Çağır (Harita)</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 opacity-60" />
               </button>

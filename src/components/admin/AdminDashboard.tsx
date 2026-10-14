@@ -70,6 +70,13 @@ import { LaunchStrategyMatrix } from '../common/LaunchStrategyMatrix';
 import { AdminLoyaltyCampaignHub } from './AdminLoyaltyCampaignHub';
 import { AdminAuditHub } from './AdminAuditHub';
 import { AdminBusinessAclHub } from './AdminBusinessAclHub';
+import { AdminAutonomousAuditHub } from './AdminAutonomousAuditHub';
+import { useLocalStorageState } from '../../hooks/useLocalStorageState';
+import {
+  INITIAL_ZONE_CAPACITY_METRICS,
+  WirePaymentSubmission,
+  BatchRoutePlanRecord,
+} from '../../services/motopilotEngines';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -155,6 +162,7 @@ export const AdminDashboard: React.FC = () => {
     | 'loyalty'
     | 'website_audit'
     | 'business_subusers'
+    | 'autonomous_audit'
   >('map');
 
   const [selectedCourierForKyc, setSelectedCourierForKyc] = useState<Courier | null>(null);
@@ -476,6 +484,14 @@ export const AdminDashboard: React.FC = () => {
                 icon: <Activity className="w-4 h-4 text-[#30D158]" />,
                 badge: 'SHA-256',
                 badgeColor: 'bg-[#30D158]/15 text-[#30D158] border-[#30D158]/30 font-mono',
+              },
+              {
+                id: 'autonomous_audit',
+                title: '71/71 Denetim, Defter & Time-Travel',
+                category: 'system',
+                icon: <ShieldCheck className="w-4 h-4 text-[#10B981]" />,
+                badge: '71/71 TAM',
+                badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono font-bold',
               },
               {
                 id: 'website_audit',
@@ -1144,6 +1160,101 @@ export const AdminDashboard: React.FC = () => {
                     </table>
                   </div>
                 </div>
+
+                {/* 4. HİBRİT KAPASİTE DENGELEME MOTORU (GAP-03) & B2B HAVALE/EFT ONAY MASASI (GAP-01) */}
+                {(() => {
+                  const zoneMetrics = INITIAL_ZONE_CAPACITY_METRICS;
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Hibrit Kapasite Dengeleme Telemetrisi */}
+                      <div className="p-5 bg-[#1C1C1E]/85 border border-white/[0.08] rounded-[28px] space-y-3 shadow-xl">
+                        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                          <div>
+                            <span className="px-2 py-0.5 rounded bg-[#0071E3]/20 text-[#0A84FF] border border-[#0071E3]/30 font-mono text-[9px] font-bold">
+                              GAP-03 · HYBRID CAPACITY ENGINE
+                            </span>
+                            <h3 className="text-sm font-bold text-white mt-1">
+                              Bölgesel Hibrit Kapasite Dengeleme Algoritması
+                            </h3>
+                          </div>
+                          <span className="text-[11px] font-mono font-bold text-[#30D158] bg-[#30D158]/15 px-2.5 py-1 rounded-xl border border-[#30D158]/30">
+                            +%38 Doluluk Artışı
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          {zoneMetrics.map((zm) => (
+                            <div
+                              key={zm.zoneId}
+                              className="p-3 bg-black/50 border border-white/[0.06] rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white">{zm.zoneName}</span>
+                                  <span className="px-2 py-0.5 rounded bg-white/[0.08] text-[10px] font-mono text-[#0A84FF]">
+                                    {zm.status}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-[#8E8E93] mt-0.5">
+                                  {zm.recommendedShiftToDelivery > 0
+                                    ? `${zm.idleDriversCount} boş sürücüden ${zm.recommendedShiftToDelivery} birimi paket dağıtımına yönlendir`
+                                    : 'Kapasite dengede · ek yönlendirme gerekmiyor'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 font-mono text-[10px] tabular-nums">
+                                <span className="px-2 py-1 rounded bg-white/[0.04] text-zinc-300">
+                                  Yolcu: {zm.passengerDemandIndex}
+                                </span>
+                                <span className="px-2 py-1 rounded bg-white/[0.04] text-zinc-300">
+                                  Paket: {zm.packageDemandIndex}
+                                </span>
+                                <span className="px-2 py-1 rounded bg-[#30D158]/15 text-[#30D158] font-bold">
+                                  +%{zm.estimatedHourlyUtilizationGainPercent}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Çoklu Paket Birleştirme & SaaS Abonelik Özeti */}
+                      <div className="p-5 bg-[#1C1C1E]/85 border border-white/[0.08] rounded-[28px] space-y-3 shadow-xl">
+                        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                          <div>
+                            <span className="px-2 py-0.5 rounded bg-[#30D158]/20 text-[#30D158] border border-[#30D158]/30 font-mono text-[9px] font-bold">
+                              GAP-01 & GAP-04 · SAAS & MULTI-DROP
+                            </span>
+                            <h3 className="text-sm font-bold text-white mt-1">
+                              B2B SaaS Abonelik & Akıllı Güzergah Özeti
+                            </h3>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-400">
+                            0% Komisyon İnvaryantı Aktif
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                          <div className="p-3 bg-black/50 border border-white/[0.06] rounded-2xl">
+                            <span className="text-[10px] text-[#8E8E93] block">Müşteri / Kurye Kesinti</span>
+                            <strong className="text-sm text-[#30D158]">0.00 ₺ (%0)</strong>
+                          </div>
+                          <div className="p-3 bg-black/50 border border-white/[0.06] rounded-2xl">
+                            <span className="text-[10px] text-[#8E8E93] block">B2B SaaS Modeli</span>
+                            <strong className="text-sm text-white">Haftalık Sabit</strong>
+                          </div>
+                          <div className="p-3 bg-black/50 border border-white/[0.06] rounded-2xl">
+                            <span className="text-[10px] text-[#8E8E93] block">Çoklu Paket Limiti</span>
+                            <strong className="text-sm text-[#0A84FF]">Maks. 3 Durak</strong>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-black/40 border border-white/[0.06] rounded-2xl text-[11px] text-[#8E8E93] leading-relaxed">
+                          İşletme Portalı üzerinden gönderilen <strong className="text-white">Havale/EFT dekont bildirimleri</strong> (referans kodu doğrulamalı) ve <strong className="text-white">Çoklu Paket Birleştirme (Multi-Drop Batch)</strong> rotaları kurye kokpitleriyle gerçek zamanlı senkronize çalışmaktadır.
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}
@@ -2850,9 +2961,9 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3">
-                  <span className="font-bold text-white font-mono block">Motosiklet Yolcu Tarifesi</span>
+                  <span className="font-bold text-white font-mono block">1. Taksi Tarifesi (TAXI_RIDE — %0 Komisyon)</span>
                   <div className="space-y-2">
-                    <label className="text-zinc-400 block">Açılış Ücreti (TL)</label>
+                    <label className="text-zinc-400 block">Taksi Açılış Ücreti (TL)</label>
                     <input
                       type="number"
                       value={motoBase}
@@ -2861,7 +2972,7 @@ export const AdminDashboard: React.FC = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-zinc-400 block">Km Başına Ücret (TL)</label>
+                    <label className="text-zinc-400 block">Taksi Km Başına Ücret (TL)</label>
                     <input
                       type="number"
                       value={motoKm}
@@ -2872,7 +2983,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3">
-                  <span className="font-bold text-white font-mono block">Paket / Kurye Tarifesi</span>
+                  <span className="font-bold text-white font-mono block">2. Kurye / Teslimat Tarifesi (PERSONAL & MERCHANT — %0 Komisyon)</span>
                   <div className="space-y-2">
                     <label className="text-zinc-400 block">Kurye Açılış Ücreti (TL)</label>
                     <input
@@ -2895,10 +3006,10 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3 text-xs">
-                <span className="font-bold text-white font-mono block">Platform Komisyonu ve Surge</span>
+                <span className="font-bold text-white font-mono block">M0 Sıfır Komisyon Kuralı (M0-ZERO-COMMISSION-2026-V1) & Surge</span>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-zinc-400 block">Platform Komisyon Oranı (%)</label>
+                    <label className="text-zinc-400 block">Platform Komisyon Oranı (% — M0 Kilitli: %0)</label>
                     <input
                       type="number"
                       value={commissionRate}
@@ -2999,6 +3110,9 @@ export const AdminDashboard: React.FC = () => {
 
           {/* İŞLETME ALT KULLANICILARI & ACL VERİ İZOLASYONU MASASI */}
           {activeTab === 'business_subusers' && <AdminBusinessAclHub />}
+
+          {/* FAZ 1-6 OTONOM 71/71 DENETİM, ÇİFT TARAFLI DEFTER (LEDGER) & TIME-TRAVEL ÜSSÜ */}
+          {activeTab === 'autonomous_audit' && <AdminAutonomousAuditHub />}
         </div>
       </div>
 

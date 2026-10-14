@@ -26,82 +26,55 @@ export const WebsiteHeader: React.FC<WebsiteHeaderProps> = ({
   return (
     <header className="sticky top-16 z-30 w-full border-b border-white/[0.08] bg-[#0A0A0C]/90 backdrop-blur-2xl transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
-        {/* Zone 1: Brand Wordmark */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 1: Single-line Brand Wordmark */}
+        <div className="flex items-center shrink-0">
           <button
             onClick={() => handleNavClick('hero')}
-            className="flex items-center gap-2.5 text-left group"
+            className="text-lg font-bold tracking-tight text-[#F5F5F7] hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-[#0A84FF] to-[#0071E3] flex items-center justify-center text-white font-bold text-sm shadow-[0_2px_10px_rgba(0,113,227,0.35)] group-hover:scale-105 transition-all">
-              M
-            </div>
-            <div className="flex flex-col">
-              <span className="text-base font-bold tracking-tight text-[#F5F5F7] leading-none">
-                MotoPilot
-              </span>
-              <span className="text-[10px] text-[#8E8E93] font-medium tracking-wide">
-                İstanbul Mobilite & Kurye
-              </span>
-            </div>
+            MotoPilot
           </button>
         </div>
 
-        {/* Zone 2: Desktop Navigation Links (Unboxed Text, No Pills) */}
+        {/* Zone 2: Desktop Navigation Links (5 Single-Line Links, Unboxed Text) */}
         <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-[#8E8E93]">
           <button
             onClick={() => handleNavClick('services')}
-            className="hover:text-white transition-colors whitespace-nowrap"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
             Hizmetler
           </button>
           <button
             onClick={onOpenEstimator}
-            className="hover:text-white transition-colors whitespace-nowrap text-[#0A84FF] font-semibold"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0 text-[#0A84FF] font-semibold"
           >
             Ücret Hesapla
           </button>
           <button
             onClick={() => handleNavClick('districts')}
-            className="hover:text-white transition-colors whitespace-nowrap"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
             Hizmet Bölgeleri
           </button>
           <button
             onClick={onOpenDriverModal}
-            className="hover:text-white transition-colors whitespace-nowrap"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
             Sürücü Ol
           </button>
           <button
             onClick={onOpenMerchantModal}
-            className="hover:text-white transition-colors whitespace-nowrap"
+            className="hover:text-white transition-colors whitespace-nowrap shrink-0"
           >
             İşletmeler İçin
           </button>
-          <button
-            onClick={() => handleNavClick('faq')}
-            className="hover:text-white transition-colors whitespace-nowrap"
-          >
-            SSS & Rehber
-          </button>
         </nav>
 
-        {/* Zone 3: Primary Conversion Action */}
-        <div className="hidden sm:flex items-center gap-3 shrink-0">
-          <a
-            href="https://wa.me/908508406686?text=Merhaba,%20MotoPilot%20hizmeti%20hakkinda%20bilgi%20almak%20istiyorum."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-2 text-xs font-semibold text-[#30D158] hover:text-white hover:bg-[#30D158]/10 rounded-xl transition-all flex items-center gap-1.5"
-            title="WhatsApp Müşteri Hattı"
-          >
-            <Phone className="w-3.5 h-3.5" />
-            <span>WhatsApp Destek</span>
-          </a>
-
+        {/* Zone 3: 1 Primary Conversion Action */}
+        <div className="hidden sm:flex items-center shrink-0">
           <button
             onClick={() => setActiveView('customer')}
-            className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-bold rounded-xl shadow-[0_2px_12px_rgba(0,113,227,0.35)] transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
+            className="px-4 py-2 bg-[#0071E3] hover:bg-[#0077ED] text-white text-xs font-bold rounded-xl shadow-[0_2px_12px_rgba(0,113,227,0.35)] transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap shrink-0"
           >
             <span>Hemen Çağır</span>
             <ArrowRight className="w-3.5 h-3.5" />

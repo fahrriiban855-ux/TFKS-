@@ -1,286 +1,280 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
-/* Apple Human Interface Guidelines Typography Fonts */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+}
+
+/* ============================================================================
+   FAZ 3: MOTOPILOT & TFKS KURUMSAL DESIGN TOKEN MİMARİSİ (10 SEMANTİK TOKEN)
+   Mod 1: Apple HIG Koyu Tema (Obsidian) — Varsayılan
+   Mod 3: Kurumsal SaaS Açık Tema (Daylight) — 1-Tıkla Canlı Geçiş
+   ============================================================================ */
+:root,
+html.dark,
+html[data-theme="dark"] {
+  --apple-font-scale: 1;
+
+  /* 10 Semantik Renk Tokenı — Obsidian (Koyu Tema) */
+  --bg-canvas: #090D16;
+  --bg-surface: #111827;
+  --bg-elevated: #1E293B;
+  --border-subtle: rgba(255, 255, 255, 0.10);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --accent-primary: #2563EB;
+  --status-success: #10B981;
+  --status-warning: #F59E0B;
+  --status-danger: #EF4444;
+
+  /* Geriye Dönük Uyumluluk Aliasları */
+  --surface-primary: var(--bg-canvas);
+  --surface-secondary: var(--bg-surface);
+  --surface-tertiary: var(--bg-elevated);
+  --surface-elevated: rgba(17, 24, 39, 0.88);
+  --label-primary: var(--text-primary);
+  --label-secondary: var(--text-secondary);
+  --label-tertiary: #CBD5E1;
+  --separator-opaque: #1E293B;
+  --separator-non-opaque: var(--border-subtle);
+  --system-blue: var(--accent-primary);
+  --system-green: var(--status-success);
+  --system-orange: var(--status-warning);
+  --system-red: var(--status-danger);
+}
+
+html.light,
+html[data-theme="light"] {
+  /* 10 Semantik Renk Tokenı — Daylight (Kurumsal SaaS Açık Tema) */
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F1F5F9;
+  --border-subtle: rgba(15, 23, 42, 0.12);
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --accent-primary: #1D4ED8;
+  --status-success: #059669;
+  --status-warning: #D97706;
+  --status-danger: #DC2626;
+
+  /* Geriye Dönük Uyumluluk Aliasları */
+  --surface-primary: var(--bg-canvas);
+  --surface-secondary: var(--bg-surface);
+  --surface-tertiary: var(--bg-elevated);
+  --surface-elevated: rgba(255, 255, 255, 0.92);
+  --label-primary: var(--text-primary);
+  --label-secondary: var(--text-secondary);
+  --label-tertiary: #334155;
+  --separator-opaque: #E2E8F0;
+  --separator-non-opaque: var(--border-subtle);
+  --system-blue: var(--accent-primary);
+  --system-green: var(--status-success);
+  --system-orange: var(--status-warning);
+  --system-red: var(--status-danger);
+}
+
+/* ============================================================================
+   6 TİPOGRAFİK ÖLÇEK TOKENI (FAZ 3 STANDARTLARI)
+   ============================================================================ */
+.type-display {
+  font-size: calc(1.75rem * var(--apple-font-scale, 1));
+  line-height: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.type-h1 {
+  font-size: calc(1.25rem * var(--apple-font-scale, 1));
+  line-height: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.type-h2 {
+  font-size: calc(1rem * var(--apple-font-scale, 1));
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+.type-body {
+  font-size: calc(0.875rem * var(--apple-font-scale, 1));
+  line-height: 1.375rem;
+  font-weight: 400;
+}
+
+.type-caption {
+  font-size: calc(0.75rem * var(--apple-font-scale, 1));
+  line-height: 1.125rem;
+  font-weight: 500;
+}
+
+.type-mono {
+  font-family: var(--font-mono);
+  font-size: calc(0.75rem * var(--apple-font-scale, 1));
+  line-height: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 @layer base {
-  :root {
-    --dynamic-type-scale: 1;
-
-    /* Apple HIG Font Family Stacks */
-    --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", sans-serif;
-    --font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", sans-serif;
-    --font-mono: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
-
-    /* Apple System Colors - Dark Theme (Default) */
-    --apple-bg: #000000;
-    --apple-surface: #0A0A0C;
-    --apple-card: #1C1C1E;
-    --apple-card-elevated: #2C2C2E;
-    --apple-blue: #0A84FF;
-    --apple-blue-hover: #0071E3;
-    --apple-green: #30D158;
-    --apple-amber: #FF9F0A;
-    --apple-red: #FF453A;
-    --apple-purple: #BF5AF2;
-    --apple-text-primary: #F5F5F7;
-    --apple-text-secondary: #A1A1A6;
-    --apple-text-tertiary: #8E8E93;
-    --apple-border: rgba(255, 255, 255, 0.08);
-  }
-
-  [data-theme="light"], .theme-light {
-    --apple-bg: #F2F2F7;
-    --apple-surface: #FFFFFF;
-    --apple-card: #FFFFFF;
-    --apple-card-elevated: #E5E5EA;
-    --apple-blue: #0071E3;
-    --apple-blue-hover: #0056B3;
-    --apple-green: #34C759;
-    --apple-amber: #FF9500;
-    --apple-red: #FF3B30;
-    --apple-purple: #AF52DE;
-    --apple-text-primary: #1C1C1E;
-    --apple-text-secondary: #48484A;
-    --apple-text-tertiary: #6C6C70;
-    --apple-border: rgba(0, 0, 0, 0.12);
-  }
-
-  body {
-    font-family: var(--font-text);
-    font-size: calc(17px * var(--dynamic-type-scale));
-    line-height: calc(22px * var(--dynamic-type-scale));
-    letter-spacing: -0.015em;
-    background-color: var(--apple-bg);
-    color: var(--apple-text-primary);
+  html {
+    font-size: calc(16px * var(--apple-font-scale, 1));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: font-size 0.18s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* SF Pro Display Headers */
-  h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: var(--font-display);
-    letter-spacing: -0.022em;
-    font-weight: 600;
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    line-height: 1.5;
+    letter-spacing: -0.011em;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* C1 & C2: WCAG 2.2 AA Kontrast Garantisi (>= 4.5:1) */
+  .text-slate-400 {
+    color: #94A3B8 !important;
+  }
+  .text-slate-500 {
+    color: #94A3B8 !important;
+  }
+  .text-slate-600 {
+    color: #94A3B8 !important;
+  }
+
+  /* Daylight (Açık Tema) Otomatik Yüzey ve Kontrast Uyarlaması */
+  html.light body,
+  html[data-theme="light"] body {
+    background-color: var(--bg-canvas) !important;
+    color: var(--text-primary) !important;
+  }
+
+  html.light .bg-\[\#000000\],
+  html.light .bg-\[\#090D16\],
+  html.light .bg-slate-950 {
+    background-color: var(--bg-canvas) !important;
+    color: var(--text-primary) !important;
+  }
+
+  html.light .bg-\[\#1C1C1E\],
+  html.light .bg-\[\#111827\],
+  html.light .bg-slate-900,
+  html.light .bg-slate-900\/80,
+  html.light .bg-slate-900\/90 {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-subtle) !important;
+  }
+
+  html.light .bg-\[\#2C2C2E\],
+  html.light .bg-\[\#1E293B\],
+  html.light .bg-slate-800,
+  html.light .bg-slate-800\/50,
+  html.light .bg-slate-800\/80 {
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+  }
+
+  html.light .text-white,
+  html.light .text-slate-100,
+  html.light .text-slate-200 {
+    color: var(--text-primary) !important;
+  }
+
+  html.light .text-slate-300,
+  html.light .text-slate-400,
+  html.light .text-slate-500,
+  html.light .text-\[\#8E8E93\],
+  html.light .text-\[\#AEAEB2\] {
+    color: var(--text-secondary) !important;
+  }
+
+  html.light .border-white\/\[0\.08\],
+  html.light .border-white\/10,
+  html.light .border-slate-800,
+  html.light .border-slate-700 {
+    border-color: var(--border-subtle) !important;
+  }
+
+  /* C3 & C5: Evrensel Klavye Odak Halkası (Focus-Visible Ring) */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible {
+    outline: 2px solid var(--accent-primary) !important;
+    outline-offset: 2px !important;
   }
 }
 
-/* ==========================================================================
-   Apple Human Interface Guidelines (HIG) Semantic Typography Utility Classes
-   Supports Dynamic Type Scaling & Automatic Responsive Layout Wrapping
-   ========================================================================== */
-
-/* 1. Large Title: 34pt, SF Pro Display, Bold */
-.apple-large-title {
-  font-family: var(--font-display);
-  font-size: calc(34px * var(--dynamic-type-scale));
-  line-height: calc(41px * var(--dynamic-type-scale));
-  font-weight: 700;
-  letter-spacing: -0.022em;
+/* C1 & C8: Mikro-Tipografi Taban Limiti (11px altı okunaksız boyutları 11px'e sabitle) */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\] {
+  font-size: calc(0.6875rem * var(--apple-font-scale, 1)) !important; /* min 11px */
+  line-height: 1.35 !important;
+  letter-spacing: 0.01em;
 }
 
-/* 2. Title 1: 28pt, SF Pro Display, Semibold */
-.apple-title-1 {
-  font-family: var(--font-display);
-  font-size: calc(28px * var(--dynamic-type-scale));
-  line-height: calc(34px * var(--dynamic-type-scale));
-  font-weight: 600;
-  letter-spacing: -0.021em;
+.text-\[11px\] {
+  font-size: calc(0.71875rem * var(--apple-font-scale, 1)) !important; /* 11.5px */
+  line-height: 1.4 !important;
 }
 
-/* 3. Title 2: 22pt, SF Pro Display, Semibold */
-.apple-title-2 {
-  font-family: var(--font-display);
-  font-size: calc(22px * var(--dynamic-type-scale));
-  line-height: calc(28px * var(--dynamic-type-scale));
-  font-weight: 600;
-  letter-spacing: -0.018em;
-}
-
-/* 4. Title 3: 20pt, SF Pro Display, Semibold */
-.apple-title-3 {
-  font-family: var(--font-display);
-  font-size: calc(20px * var(--dynamic-type-scale));
-  line-height: calc(25px * var(--dynamic-type-scale));
-  font-weight: 600;
-  letter-spacing: -0.017em;
-}
-
-/* 5. Headline: 17pt, SF Pro Text, Semibold */
-.apple-headline {
-  font-family: var(--font-text);
-  font-size: calc(17px * var(--dynamic-type-scale));
-  line-height: calc(22px * var(--dynamic-type-scale));
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-/* 6. Body (Apple Default): 17pt, SF Pro Text, Regular */
-.apple-body {
-  font-family: var(--font-text);
-  font-size: calc(17px * var(--dynamic-type-scale));
-  line-height: calc(22px * var(--dynamic-type-scale));
-  font-weight: 400;
-  letter-spacing: -0.015em;
-}
-
-/* 7. Callout: 16pt, SF Pro Text, Regular */
-.apple-callout {
-  font-family: var(--font-text);
-  font-size: calc(16px * var(--dynamic-type-scale));
-  line-height: calc(21px * var(--dynamic-type-scale));
-  font-weight: 400;
-  letter-spacing: -0.013em;
-}
-
-/* 8. Subheadline: 15pt, SF Pro Text, Regular / Medium */
-.apple-subheadline {
-  font-family: var(--font-text);
-  font-size: calc(15px * var(--dynamic-type-scale));
-  line-height: calc(20px * var(--dynamic-type-scale));
-  font-weight: 400;
-  letter-spacing: -0.011em;
-}
-
-/* 9. Footnote: 13pt, SF Pro Text, Regular */
-.apple-footnote {
-  font-family: var(--font-text);
-  font-size: calc(13px * var(--dynamic-type-scale));
-  line-height: calc(18px * var(--dynamic-type-scale));
-  font-weight: 400;
-  letter-spacing: -0.006em;
-}
-
-/* 10. Caption 1: 12pt, SF Pro Text, Medium */
-.apple-caption-1 {
-  font-family: var(--font-text);
-  font-size: calc(12px * var(--dynamic-type-scale));
-  line-height: calc(16px * var(--dynamic-type-scale));
-  font-weight: 500;
-  letter-spacing: 0em;
-}
-
-/* 11. Caption 2: 11pt, SF Pro Text, Medium */
-.apple-caption-2 {
-  font-family: var(--font-text);
-  font-size: calc(11px * var(--dynamic-type-scale));
-  line-height: calc(13px * var(--dynamic-type-scale));
-  font-weight: 500;
-  letter-spacing: 0.005em;
-}
-
-/* 12. Button: 17pt, SF Pro Text, Semibold */
-.apple-button-text {
-  font-family: var(--font-text);
-  font-size: calc(17px * var(--dynamic-type-scale));
-  line-height: calc(22px * var(--dynamic-type-scale));
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-/* Touch Target Standard: Mobile Primary Actions >= 48px */
-.touch-target-primary {
-  min-height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Tabular Numbers (Financial & Metric Precision Alignment) */
-.apple-tabular {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
-  letter-spacing: -0.02em;
-}
-
-/* High Contrast Semantic Color Helpers (WCAG AA & AAA compliant) */
-.apple-text-primary {
-  color: var(--apple-text-primary);
-}
-.apple-text-secondary {
-  color: var(--apple-text-secondary);
-}
-.apple-text-tertiary {
-  color: var(--apple-text-tertiary);
-}
-
-/* Dynamic container auto-expansion */
-.dynamic-card {
-  min-height: max-content;
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
-
-/* Apple-style Frosted Glass & Surface Classes */
+/* Apple Glassmorphism & Vibrancy Materials */
 .apple-glass {
-  background: rgba(22, 22, 26, 0.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.apple-glass-card {
-  background: rgba(28, 28, 32, 0.65);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: var(--surface-elevated);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid var(--border-subtle);
 }
 
 .apple-card {
-  background-color: #16161A;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
 }
 
-.apple-card-elevated {
-  background-color: #1E1E24;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+/* Tabular Numbers for Financial & Operational Metrics */
+.tabular-nums,
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Apple iOS Segmented Control & Pill */
-.apple-segmented-track {
-  background: rgba(120, 120, 128, 0.2);
-  backdrop-filter: blur(20px);
-  border-radius: 9999px;
-  padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+/* C7: Hareket Hassasiyeti (prefers-reduced-motion) Desteği */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-/* Subtle Apple macOS / iOS Scrollbar */
+/* Custom sleek scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  width: 6px;
+  height: 6px;
 }
 
-/* Leaflet Apple Dark Mode Map styling */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-  background: #08080a;
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
 }
-.leaflet-bar {
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 12px !important;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.45);
+  border-radius: 9999px;
 }
-.leaflet-bar a {
-  background-color: #1c1c1e !important;
-  color: #f5f5f7 !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-.leaflet-bar a:hover {
-  background-color: #2c2c2e !important;
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
 }

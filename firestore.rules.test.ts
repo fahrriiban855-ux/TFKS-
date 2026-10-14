@@ -1,0 +1,217 @@
+/**
+ * Phase 0 Payload-First Security TDD Test Suite (`firestore.rules.test.ts`)
+ * Verifies that all 12 "Dirty Dozen" adversarial payloads are blocked by `firestore.rules`.
+ */
+
+export interface DirtyDozenTestCase {
+  id: string;
+  name: string;
+  collection: string;
+  docId: string;
+  operation: 'create' | 'update' | 'get' | 'list';
+  authUid: string | null;
+  emailVerified: boolean;
+  payload?: Record<string, unknown>;
+  expectedOutcome: 'PERMISSION_DENIED';
+}
+
+export const DIRTY_DOZEN_PAYLOAD_TESTS: DirtyDozenTestCase[] = [
+  {
+    id: 'DD-01',
+    name: 'Shadow Field Injection on PlatformOrder',
+    collection: 'orders',
+    docId: 'ord_shadow_1',
+    operation: 'create',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: {
+      orderId: 'ord_shadow_1',
+      ownerId: 'usr_101',
+      serviceType: 'TAXI_RIDE',
+      status: 'searching',
+      pickupName: 'Beşiktaş',
+      dropoffName: 'Levent',
+      totalFare: 220,
+      platformCommission: 0,
+      courierEarnings: 220,
+      snapshotHash: 'sha256:valid001',
+      isVerifiedShadowFlag: true, // Ghost field
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-02',
+    name: 'Non-Zero Platform Commission Injection (Violates 0% Invariant)',
+    collection: 'orders',
+    docId: 'ord_comm_2',
+    operation: 'create',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: {
+      orderId: 'ord_comm_2',
+      ownerId: 'usr_101',
+      serviceType: 'INDIVIDUAL_DELIVERY',
+      status: 'searching',
+      pickupName: 'Kadıköy',
+      dropoffName: 'Ataşehir',
+      totalFare: 180,
+      platformCommission: 25, // Prohibited in M0
+      courierEarnings: 155,
+      snapshotHash: 'sha256:invalidcomm',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-03',
+    name: 'Locked MOTO_PASSENGER_RIDE Service Type Bypass',
+    collection: 'orders',
+    docId: 'ord_moto_3',
+    operation: 'create',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: {
+      orderId: 'ord_moto_3',
+      ownerId: 'usr_101',
+      serviceType: 'MOTO_PASSENGER_RIDE', // Disabled by policy in M0
+      status: 'searching',
+      pickupName: 'Şişli',
+      dropoffName: 'Taksim',
+      totalFare: 120,
+      platformCommission: 0,
+      courierEarnings: 120,
+      snapshotHash: 'sha256:lockedservice',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-04',
+    name: 'Identity Spoofing (ownerId mismatch)',
+    collection: 'orders',
+    docId: 'ord_spoof_4',
+    operation: 'create',
+    authUid: 'usr_attacker',
+    emailVerified: true,
+    payload: {
+      orderId: 'ord_spoof_4',
+      ownerId: 'usr_victim',
+      serviceType: 'TAXI_RIDE',
+      status: 'searching',
+      pickupName: 'Nişantaşı',
+      dropoffName: 'Etiler',
+      totalFare: 200,
+      platformCommission: 0,
+      courierEarnings: 200,
+      snapshotHash: 'sha256:spoof',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-05',
+    name: 'Unverified Email Spoofing Attack',
+    collection: 'orders',
+    docId: 'ord_unverified_5',
+    operation: 'create',
+    authUid: 'usr_unverified',
+    emailVerified: false,
+    payload: {
+      orderId: 'ord_unverified_5',
+      ownerId: 'usr_unverified',
+      serviceType: 'TAXI_RIDE',
+      status: 'searching',
+      pickupName: 'Maslak',
+      dropoffName: 'Sarıyer',
+      totalFare: 190,
+      platformCommission: 0,
+      courierEarnings: 190,
+      snapshotHash: 'sha256:unverified',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-06',
+    name: 'PII Blanket Read on Another User Private Document',
+    collection: 'users_private',
+    docId: 'usr_target_pii',
+    operation: 'get',
+    authUid: 'usr_other',
+    emailVerified: true,
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-07',
+    name: 'Unfiltered List Query on PII Collection',
+    collection: 'users_private',
+    docId: '*',
+    operation: 'list',
+    authUid: 'usr_101',
+    emailVerified: true,
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-08',
+    name: 'Terminal State Re-opening (completed -> in_progress)',
+    collection: 'orders',
+    docId: 'ord_completed_8',
+    operation: 'update',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: { status: 'in_progress' },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-09',
+    name: 'ID Poisoning with Invalid Characters',
+    collection: 'orders',
+    docId: 'ord/invalid$id#poison',
+    operation: 'create',
+    authUid: 'usr_101',
+    emailVerified: true,
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-10',
+    name: 'Client Timestamp Forgery (createdAt != request.time)',
+    collection: 'batch_routes',
+    docId: 'batch_forged_10',
+    operation: 'create',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: {
+      batchId: 'batch_forged_10',
+      ownerId: 'usr_101',
+      businessId: 'BIZ-01',
+      corridorName: 'Beşiktaş - Levent Koridoru',
+      packageCount: 3,
+      kmSavedPercent: 28,
+      status: 'READY',
+      createdAt: '2020-01-01T00:00:00Z',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-11',
+    name: 'Immortal Field Mutation (Changing ownerId on Update)',
+    collection: 'batch_routes',
+    docId: 'batch_valid_11',
+    operation: 'update',
+    authUid: 'usr_101',
+    emailVerified: true,
+    payload: {
+      ownerId: 'usr_202',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+  {
+    id: 'DD-12',
+    name: 'Self-Assigned Admin Privilege Escalation',
+    collection: 'admins',
+    docId: 'usr_attacker',
+    operation: 'create',
+    authUid: 'usr_attacker',
+    emailVerified: true,
+    payload: {
+      uid: 'usr_attacker',
+    },
+    expectedOutcome: 'PERMISSION_DENIED',
+  },
+];

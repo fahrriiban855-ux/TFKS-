@@ -1,6 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X, Bell } from 'lucide-react';
+import {
+  computeSha256Hex,
+  computeDeterministicHex,
+  generateSealHash,
+  verifyAuditLogChain,
+  generateSecureUUID,
+} from '../utils/crypto';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { api } from '../services/api';
 import {
   ServiceType,
   OrderTimingOption,
@@ -15,6 +24,8 @@ import {
   ChatMessage,
   SavedCard,
   WalletTransaction,
+  LedgerEntry,
+  SystemSnapshot,
   CourierShift,
   TrafficPenalty,
   VehicleAssignment,
@@ -37,6 +48,12 @@ import {
   AccessibleNotification,
   BusinessAccount,
   BusinessSubUser,
+  isValidOrderTransition,
+  roundCurrency,
+  calculateHaversineDistanceKm,
+  toISODateString,
+  createZeroCommissionFeeSnapshot,
+  mapLegacyServiceTypeToCanonical,
 } from '../types/platform';
 import {
   INITIAL_COURIERS,
@@ -54,6 +71,7 @@ import {
   INITIAL_SERVICE_WORK_ORDERS,
   INITIAL_SYSTEM_BLOCKAGES,
   INITIAL_AUDIT_LOG_ENTRIES,
+  INITIAL_LEDGER_ENTRIES,
   INITIAL_DAILY_CLOSING_CHECKLIST,
 } from '../data/platformData';
 import {
@@ -291,7 +309,7 @@ interface PlatformContextType {
     previousValue: string;
     newValue: string;
     justification: string;
-  }) => void;
+  }) => { success: boolean; logId: string; hash: string };
 
   dailyClosingAudit: DailyClosingAudit;
   runDailyClosingCheck: (overrideNote?: string) => boolean;
@@ -407,6 +425,33 @@ interface PlatformContextType {
   turkeyLocations: LocationPoint[];
   searchLocations: (query: string) => LocationPoint[];
   resolveLocationFromCoords: (lat: number, lng: number) => LocationPoint;
+
+  // 11. Mimari, Hata, Çift Taraflı Defter (Ledger), SHA-256 & Time-Travel Motoru (B1-B23, A20)
+  isLoading: boolean;
+  error: string | null;
+  clearError: () => void;
+  createOrder: (order: Partial<RideOrder>, idempotencyKey?: string) => Promise<{ success: boolean; orderId: string }>;
+  updateOrderStatus: (orderId: string, status: RideStatus) => void;
+  assignCourierToOrder: (orderId: string, courierId: string) => void;
+  cancelOrder: (orderId: string, reason?: string) => void;
+  updateCourier: (courierId: string, updates: Partial<Courier>) => void;
+  blockCourier: (courierId: string, reason: string) => Promise<{ success: boolean; message: string }>;
+  ledgerEntries: LedgerEntry[];
+  recordLedgerEntry: (params: {
+    accountDebit: string;
+    accountCredit: string;
+    amount: number;
+    transactionRefId: string;
+    description: string;
+  }) => Promise<LedgerEntry>;
+  verifyLedgerBalance: () => { isBalanced: boolean; totalDebit: number; totalCredit: number; entryCount: number };
+  verifyAuditChain: () => { isValid: boolean; checkedCount: number; brokenRecordId?: string };
+  snapshots: SystemSnapshot[];
+  createSnapshot: (label?: string) => Promise<SystemSnapshot>;
+  restoreSnapshot: (snapshotId: string) => boolean;
+  deleteSnapshot: (snapshotId: string) => void;
+  lastSyncedAt: string;
+  syncWithServer: () => Promise<{ synced: boolean; outboxFlushed: number }>;
 }
 
 export interface PlatformNotification extends AccessibleNotification {}
@@ -469,18 +514,18 @@ const INITIAL_RECONCILIATION_RECORDS: TransactionReconciliationRecord[] = [
     paymentMethod: 'wallet',
     amountCollected: 85,
     collectionChannel: 'simulation_wallet',
-    courierEarnings: 68,
-    platformCommission: 17,
+    courierEarnings: 85,
+    platformCommission: 0,
     cancellationFeeApplied: 0,
     appliedRule: {
-      ruleCode: 'KURAL-F01-ONAYLI',
-      description: 'Onaylı Yolculuk Tarifesi (%80 Sürücü / %20 Platform Payı)',
+      ruleCode: 'M0-ZERO-COMMISSION-2026-V1',
+      description: 'M0 %0 Komisyon Onaylı Tarifesi (%100 Sürücü/Kurye Hakedişi / %0 Platform Payı)',
       isApprovedByUser: true,
     },
     reconciliationStatus: 'balanced',
     idempotencyKey: 'idem_RIDE-101_settlement',
     isIdempotentVerified: true,
-    notes: 'Geçmiş tamamlanan yolculuk mutabakatı (İstemci simülasyon cüzdanından düşüldü).',
+    notes: 'Geçmiş tamamlanan yolculuk mutabakatı (%0 komisyon, %100 sürücü hakedişi).',
   },
 ];
 
@@ -519,6 +564,9 @@ const INITIAL_COURIER_PENALTIES: TrafficPenalty[] = [
     fullAmount: 1506,
     discountedAmount: 1129.5,
     status: 'unpaid',
+    acknowledgedByCourier: true,
+    acknowledgedAt: '28.09.2026 16:10',
+    courierReadStatus: 'read',
   },
 ];
 
@@ -594,7 +642,7 @@ const INITIAL_MERCHANT_LEADS: MerchantLead[] = [
     requestedService: 'express_courier',
     status: 'proposal_sent',
     submittedAt: '12.10.2026 10:45',
-    notes: 'Günlük 40-50 paket için %15 komisyon indirimi teklif edildi.',
+    notes: 'M0 %0 sipariş komisyonu + 2 hafta ücretsiz kurumsal kurye başlangıç kampanyası teklif edildi.',
   },
   {
     id: 'mlead-202',
@@ -613,30 +661,126 @@ const INITIAL_MERCHANT_LEADS: MerchantLead[] = [
 ];
 
 const PlatformContext = createContext<PlatformContextType | undefined>(undefined);
+PlatformContext.displayName = 'PlatformContext';
+
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const raw = localStorage.getItem(`motopilot_${key}`);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn(`LocalStorage read error for ${key}:`, e);
+  }
+  return defaultValue;
+}
+
+function saveToStorage<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`motopilot_${key}`, JSON.stringify(value));
+  } catch (e) {
+    console.warn(`LocalStorage write error for ${key}:`, e);
+  }
+}
 
 export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeView, setActiveView] = useState<PlatformView>('split');
+  // B11: URL hash deep linking sync
+  const getInitialView = (): PlatformView => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashView = window.location.hash.replace('#', '') as PlatformView;
+      const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website', 'presentation', 'typography'];
+      if (validViews.includes(hashView)) return hashView;
+    }
+    return loadFromStorage<PlatformView>('activeView', 'split');
+  };
+
+  const [activeView, setActiveViewState] = useState<PlatformView>(getInitialView);
+
+  const setActiveView = useCallback((view: PlatformView) => {
+    setActiveViewState(view);
+    saveToStorage('activeView', view);
+    if (typeof window !== 'undefined') {
+      window.location.hash = view;
+    }
+  }, []);
+
+  // Sync hash changes from back/forward buttons
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hashView = window.location.hash.replace('#', '') as PlatformView;
+      const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website', 'presentation', 'typography'];
+      if (validViews.includes(hashView) && hashView !== activeView) {
+        setActiveViewState(hashView);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeView]);
+
+  // B4: Loading & Error State
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const clearError = useCallback(() => setError(null), []);
+
+  // B20: Idempotency Key Set
+  const idempotencyKeysRef = useRef<Set<string>>(new Set());
+
+  // B1: Persistent States with useLocalStorageState & BroadcastChannel multi-tab sync
   const [customerProfileMode, setCustomerProfileMode] = useState<UserProfileMode>('individual');
-  const [tariffs, setTariffs] = useState<TariffSettings>(INITIAL_TARIFFS);
-  const [couriers, setCouriers] = useState<Courier[]>(INITIAL_COURIERS);
+  const [tariffs, setTariffs] = useLocalStorageState<TariffSettings>('tariffs', INITIAL_TARIFFS);
+  const [couriers, setCouriers] = useLocalStorageState<Courier[]>('couriers', INITIAL_COURIERS);
   const [activeCourierId, setActiveCourierId] = useState<string>('kurye-1');
-  const [allRides, setAllRides] = useState<RideOrder[]>(INITIAL_PAST_RIDES);
-  const [currentRide, setCurrentRide] = useState<RideOrder | null>(null);
-  const [complaints, setComplaints] = useState<ComplaintTicket[]>(INITIAL_COMPLAINTS);
+  const [allRides, setAllRides] = useLocalStorageState<RideOrder[]>('allRides', INITIAL_PAST_RIDES);
+  const [currentRide, setCurrentRide] = useLocalStorageState<RideOrder | null>('currentRide', null);
+  const [complaints, setComplaints] = useLocalStorageState<ComplaintTicket[]>('complaints', INITIAL_COMPLAINTS);
+
+  // M0 Sıfır Komisyon Kuralı Senkronizasyonu: LocalStorage'da eski komisyonlu kayıt kalmışsa %0 komisyona normalize et
+  useEffect(() => {
+    if (tariffs.platformCommissionRate !== 0) {
+      setTariffs((prev) => ({ ...prev, platformCommissionRate: 0 }));
+    }
+    if (allRides.some((r) => r.platformCommission !== 0)) {
+      setAllRides((prev) =>
+        prev.map((r) => ({
+          ...r,
+          platformCommission: 0,
+          courierEarnings: r.totalFare,
+          serviceFeePercent: 0,
+          serviceFeeFixed: 0,
+        }))
+      );
+    }
+  }, [tariffs.platformCommissionRate, allRides, setTariffs, setAllRides]);
 
   // Ödeme Tercihi (Nakit / Sanal POS Kredi Kartı / Cüzdan)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('card');
 
   // Finansal Uzlaşma ve Mutabakat Kayıtları
-  const [reconciliationRecords, setReconciliationRecords] = useState<TransactionReconciliationRecord[]>(INITIAL_RECONCILIATION_RECORDS);
+  const [reconciliationRecords, setReconciliationRecords] = useLocalStorageState<TransactionReconciliationRecord[]>(
+    'reconciliationRecords',
+    INITIAL_RECONCILIATION_RECORDS
+  );
 
   // Onay Bekleyen Finansal Politika Önerileri (Yürürlükte Olmayan Taslaklar)
-  const [pendingPolicyProposals, setPendingPolicyProposals] = useState<PolicyProposal[]>(INITIAL_POLICY_PROPOSALS);
+  const [pendingPolicyProposals, setPendingPolicyProposals] = useLocalStorageState<PolicyProposal[]>(
+    'pendingPolicyProposals',
+    INITIAL_POLICY_PROPOSALS
+  );
 
   // Apple Typography & Accessibility Dynamic Type State
   const [dynamicTypeScale, setDynamicTypeScaleState] = useState<number>(1.0);
   const [dynamicTypePreset, setDynamicTypePreset] = useState<'small' | 'standard' | 'large' | 'accessibility1' | 'accessibility2'>('standard');
-  const [themeMode, setThemeModeState] = useState<'dark' | 'light'>('dark');
+  const [themeMode, setThemeModeState] = useLocalStorageState<'dark' | 'light'>('themeMode', 'dark');
+
+  useEffect(() => {
+    if (themeMode === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.body.classList.add('theme-light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      document.body.classList.remove('theme-light');
+    }
+  }, [themeMode]);
 
   const setDynamicTypeScale = (scale: number) => {
     setDynamicTypeScaleState(scale);
@@ -656,25 +800,52 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setThemeMode = (mode: 'dark' | 'light') => {
     setThemeModeState(mode);
-    if (mode === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
-      document.body.classList.add('theme-light');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      document.body.classList.remove('theme-light');
-    }
   };
 
   const toggleThemeMode = () => {
     setThemeMode(themeMode === 'dark' ? 'light' : 'dark');
   };
 
-  // Apple & WCAG Erişilebilir Bildirim & Kuyruk Sistemi
+  // [B2 & C1-C10] Bellek Sızıntısı Korumalı Bildirim Kuyruğu (Max 5 Kuyruk Sınırı & Hover Duraklatma)
+  const MAX_NOTIFICATION_QUEUE = 5;
   const [notificationQueue, setNotificationQueue] = useState<AccessibleNotification[]>([]);
   const [activeNotification, setActiveNotification] = useState<AccessibleNotification | null>(null);
   const [notificationHistory, setNotificationHistory] = useState<AccessibleNotification[]>([]);
+  const [isNotificationHovered, setIsNotificationHovered] = useState<boolean>(false);
   const [screenReaderAnnouncement, setScreenReaderAnnouncement] = useState<{ message: string; type: 'polite' | 'assertive' } | null>(null);
 
+  // Rate limiting ref & timer ref
+  const notifTimestampsRef = useRef<number[]>([]);
+  const notifTimerRef = useRef<any>(null);
+
+  const triggerHapticAndAudio = (isCrit: boolean) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(isCrit ? [80, 40, 80] : [40]);
+      }
+      if (typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = isCrit ? 'square' : 'sine';
+          osc.frequency.setValueAtTime(isCrit ? 880 : 580, ctx.currentTime);
+          gain.gain.setValueAtTime(0.04, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.12);
+        }
+      }
+    } catch {}
+  };
+
+  /**
+   * [B2] Bildirim Gönderici (Rate-Limited & Max 5 FIFO Kuyruk Korumalı)
+   * Aynı anda kuyrukta MAX 5 bildirimden fazlası birikemez; 5'i aşan en eski bildirim otomatik silinir.
+   */
   const showNotification = ({
     title,
     message,
@@ -688,19 +859,28 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     durationMs?: number;
     isCritical?: boolean;
   }) => {
-    // Okuma süresi: karakter uzunluğuna göre minimum 5000ms, kritik hatalarda 10000ms
+    const now = Date.now();
+    notifTimestampsRef.current = notifTimestampsRef.current.filter((t) => now - t < 3000);
+    if (notifTimestampsRef.current.length >= 6 && !isCritical) {
+      return;
+    }
+    notifTimestampsRef.current.push(now);
+
+    triggerHapticAndAudio(isCritical || type === 'error');
+
     const calculatedDuration = durationMs || (isCritical ? 10000 : Math.max(5000, (title.length + message.length) * 65));
     const notif: AccessibleNotification = {
-      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: generateSecureUUID('notif'),
       title,
       message,
       type,
-      timestamp: Date.now(),
+      timestamp: now,
       durationMs: calculatedDuration,
       isCritical,
     };
 
-    setNotificationHistory((prev) => [notif, ...prev.slice(0, 49)]);
+    // Geçmişte de en fazla 25 kayıt tut, kapatılanlar filter() ile temizlenir
+    setNotificationHistory((prev) => [notif, ...prev.filter((item) => item.id !== notif.id).slice(0, 24)]);
     setScreenReaderAnnouncement({
       message: `${type === 'error' ? 'Kritik Hata' : type === 'warning' ? 'Uyarı' : 'Bilgi'}: ${title}. ${message}`,
       type: type === 'error' || isCritical ? 'assertive' : 'polite',
@@ -710,19 +890,36 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!current) {
         return notif;
       } else {
-        // Mevcut bildirim ezilmesin, kuyruğa alınsın
-        setNotificationQueue((q) => [...q, notif]);
+        // Kuyrukta MAX 5 bildirim: 5'i aşan en eski bildirim (FIFO) otomatik çıkarılır
+        setNotificationQueue((q) => {
+          const updated = [...q, notif];
+          return updated.length > MAX_NOTIFICATION_QUEUE
+            ? updated.slice(updated.length - MAX_NOTIFICATION_QUEUE)
+            : updated;
+        });
         return current;
       }
     });
   };
 
-  const dismissNotification = (id?: string) => {
-    setActiveNotification(null);
-  };
+  /**
+   * [B2] Bildirimi diziden tamamen `filter()` ile çıkarır (Bellek sızıntısını önler).
+   */
+  const dismissNotification = useCallback((id?: string) => {
+    if (notifTimerRef.current) {
+      clearTimeout(notifTimerRef.current);
+      notifTimerRef.current = null;
+    }
+    if (id) {
+      setNotificationQueue((prev) => prev.filter((n) => n.id !== id));
+      setNotificationHistory((prev) => prev.filter((n) => n.id !== id));
+    }
+    setActiveNotification((curr) => (!id || curr?.id === id ? null : curr));
+  }, []);
 
   const clearNotificationHistory = () => {
     setNotificationHistory([]);
+    setNotificationQueue([]);
   };
 
   // Kuyruktaki bir sonraki bildirimi işleme
@@ -734,22 +931,41 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [activeNotification, notificationQueue]);
 
-  // Aktif bildirim için zamanlayıcı (Kritik değilse)
+  // Aktif bildirim için zamanlayıcı (Fare üzerindeyken - onMouseEnter - sayaç duraklar!)
   useEffect(() => {
     if (!activeNotification) return;
-    if (activeNotification.isCritical) return; // Kritik onaylar kullanıcı kapatana kadar bekler
+    if (activeNotification.isCritical) return;
+    if (isNotificationHovered) {
+      if (notifTimerRef.current) {
+        clearTimeout(notifTimerRef.current);
+        notifTimerRef.current = null;
+      }
+      return;
+    }
 
-    const timer = setTimeout(() => {
+    if (notifTimerRef.current) {
+      clearTimeout(notifTimerRef.current);
+    }
+
+    notifTimerRef.current = setTimeout(() => {
       dismissNotification(activeNotification.id);
     }, activeNotification.durationMs);
 
-    return () => clearTimeout(timer);
-  }, [activeNotification]);
+    return () => {
+      if (notifTimerRef.current) {
+        clearTimeout(notifTimerRef.current);
+        notifTimerRef.current = null;
+      }
+    };
+  }, [activeNotification, isNotificationHovered, dismissNotification]);
 
-  // Customer Wallet & Cards State
-  const [customerWalletBalance, setCustomerWalletBalance] = useState<number>(350);
-  const [customerCards, setCustomerCards] = useState<SavedCard[]>(INITIAL_SAVED_CARDS);
-  const [customerTransactions, setCustomerTransactions] = useState<WalletTransaction[]>(INITIAL_TRANSACTIONS);
+  // Customer Wallet & Cards State (Persisted)
+  const [customerWalletBalance, setCustomerWalletBalance] = useLocalStorageState<number>('customerWalletBalance', 350);
+  const [customerCards, setCustomerCards] = useLocalStorageState<SavedCard[]>('customerCards', INITIAL_SAVED_CARDS);
+  const [customerTransactions, setCustomerTransactions] = useLocalStorageState<WalletTransaction[]>(
+    'customerTransactions',
+    INITIAL_TRANSACTIONS
+  );
 
   // 1. Kural Denetimi: Onaysız iptal bedeli kuralıyla üretilmiş geçmiş kayıtları tespit et ve bildir (Silinmez!)
   const detectedUnapprovedRecords: DetectedUnapprovedRecord[] = customerTransactions
@@ -771,39 +987,60 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
 
   // Courier TFKS Shift, Cash-in-Hand & Penalties State
-  const [courierShift, setCourierShift] = useState<CourierShift>({
+  const [courierShift, setCourierShift] = useLocalStorageState<CourierShift>('courierShift', {
     isShiftActive: true,
     bikePlate: '34 BLY 717',
     startKm: 24890,
     photosApproved: true,
     startedAt: '03.10.2026 08:30',
   });
-  const [courierCashInHand, setCourierCashInHand] = useState<number>(480);
-  const [courierPenalties, setCourierPenalties] = useState<TrafficPenalty[]>(INITIAL_COURIER_PENALTIES);
+  const [courierCashInHand, setCourierCashInHand] = useLocalStorageState<number>('courierCashInHand', 480);
+  const [courierPenalties, setCourierPenalties] = useLocalStorageState<TrafficPenalty[]>(
+    'courierPenalties',
+    INITIAL_COURIER_PENALTIES
+  );
 
   // Admin EOD Closing State
-  const [dailyClosingStatus, setDailyClosingStatus] = useState<{
+  const [dailyClosingStatus, setDailyClosingStatus] = useLocalStorageState<{
     isClosed: boolean;
     closedAt?: string;
     totalSettled: number;
     totalCashCollected: number;
     auditHash?: string;
-  }>({
+  }>('dailyClosingStatus', {
     isClosed: false,
     totalSettled: 4890,
     totalCashCollected: 1240,
   });
 
-  // TFKS State Declarations
-  const [vehicleAssignments, setVehicleAssignments] = useState<VehicleAssignment[]>(INITIAL_VEHICLE_ASSIGNMENTS);
-  const [cashVaults, setCashVaults] = useState<CashVault[]>(INITIAL_CASH_VAULTS);
-  const [cashTransfers, setCashTransfers] = useState<CashTransferRecord[]>(INITIAL_CASH_TRANSFERS);
-  const [damageReports, setDamageReports] = useState<DamageReport[]>(INITIAL_DAMAGE_REPORTS);
-  const [warehouseParts, setWarehouseParts] = useState<WarehousePart[]>(INITIAL_WAREHOUSE_PARTS);
-  const [serviceWorkOrders, setServiceWorkOrders] = useState<ServiceWorkOrder[]>(INITIAL_SERVICE_WORK_ORDERS);
-  const [systemBlockages, setSystemBlockages] = useState<SystemBlockage[]>(INITIAL_SYSTEM_BLOCKAGES);
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOG_ENTRIES);
-  const [dailyClosingAudit, setDailyClosingAudit] = useState<DailyClosingAudit>({
+  // TFKS State Declarations (Persisted via useLocalStorageState)
+  const [vehicleAssignments, setVehicleAssignments] = useLocalStorageState<VehicleAssignment[]>(
+    'assignments',
+    INITIAL_VEHICLE_ASSIGNMENTS
+  );
+  const [cashVaults, setCashVaults] = useLocalStorageState<CashVault[]>('vaults', INITIAL_CASH_VAULTS);
+  const [cashTransfers, setCashTransfers] = useLocalStorageState<CashTransferRecord[]>(
+    'cashTransfers',
+    INITIAL_CASH_TRANSFERS
+  );
+  const [damageReports, setDamageReports] = useLocalStorageState<DamageReport[]>(
+    'damageReports',
+    INITIAL_DAMAGE_REPORTS
+  );
+  const [warehouseParts, setWarehouseParts] = useLocalStorageState<WarehousePart[]>(
+    'warehouseParts',
+    INITIAL_WAREHOUSE_PARTS
+  );
+  const [serviceWorkOrders, setServiceWorkOrders] = useLocalStorageState<ServiceWorkOrder[]>(
+    'serviceWorkOrders',
+    INITIAL_SERVICE_WORK_ORDERS
+  );
+  const [systemBlockages, setSystemBlockages] = useLocalStorageState<SystemBlockage[]>(
+    'systemBlockages',
+    INITIAL_SYSTEM_BLOCKAGES
+  );
+  const [auditLogs, setAuditLogs] = useLocalStorageState<AuditLogEntry[]>('auditLogs', INITIAL_AUDIT_LOG_ENTRIES);
+  const [dailyClosingAudit, setDailyClosingAudit] = useLocalStorageState<DailyClosingAudit>('dailyClosing', {
     closingDate: '03.10.2026',
     status: 'open',
     openZimmetCount: 2,
@@ -813,6 +1050,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     unservedPenaltiesCount: 0,
     auditChecklist: INITIAL_DAILY_CLOSING_CHECKLIST,
   });
+
+  // [A20 & B5] Kanonik Çift Taraflı Muhasebe Defteri (Single Source of Truth General Ledger)
+  const [ledgerEntries, setLedgerEntries] = useLocalStorageState<LedgerEntry[]>('ledgerEntries', INITIAL_LEDGER_ENTRIES);
+
+  // Time-Travel Snapshots & Server Sync State
+  const [snapshots, setSnapshots] = useLocalStorageState<SystemSnapshot[]>('snapshots', []);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string>(() => new Date().toLocaleTimeString('tr-TR'));
 
   // =========================================================================
   // SADAKAT, REFERANS, KAMPANYA & ÖDÜL SİSTEMLERİ STATELERİ (Production Altyapı)
@@ -1495,6 +1739,11 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
+  /**
+   * [B3 & B14] Kriptografik SHA-256 Zincirleme Denetim İzi Kaydedici (`recordAuditLog`)
+   * `btoa()` yerine Web Crypto API (`generateSealHash` -> `crypto.subtle.digest('SHA-256')`) kullanarak
+   * her kaydı bir önceki kaydın `securitySealHash` özetiyle birbirine zincirler.
+   */
   const recordAuditLog = (entry: {
     actionType: AuditLogEntry['actionType'];
     screenName: string;
@@ -1502,17 +1751,271 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     previousValue: string;
     newValue: string;
     justification: string;
-  }) => {
-    const randomHash = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }): { success: boolean; logId: string; hash: string } => {
+    const logId = generateSecureUUID('audit');
+
+    let actorName = 'Sistem Yöneticisi (Aktif Oturum)';
+    let actorRole = 'Operasyon Sorumlusu';
+    if (activeView === 'business') {
+      if (activeBusinessSubUser) {
+        actorName = activeBusinessSubUser.name;
+        actorRole = `${activeBusinessAccount.brandName} - ${activeBusinessSubUser.role}`;
+      } else if (activeBusinessAccount) {
+        actorName = activeBusinessAccount.title;
+        actorRole = 'İşletme Sahibi';
+      }
+    } else if (activeView === 'courier') {
+      const cr = couriers.find((c) => c.id === activeCourierId);
+      actorName = cr ? cr.name : 'Saha Kuryesi';
+      actorRole = 'Kurye';
+    }
+
+    const previousSealHash = auditLogs[0]?.securitySealHash || 'GENESIS_0000000000000000';
+    const rawSealSource = `${logId}:${entry.actionType}:${entry.recordId}:${entry.previousValue}->${entry.newValue}:${Date.now()}`;
+    const initialSealHash = computeDeterministicHex(`${previousSealHash}::${rawSealSource}`);
+
     const newEntry: AuditLogEntry = {
-      id: `audit-${Date.now()}`,
+      id: logId,
       timestamp: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'medium' }),
-      actorName: 'Yönetici (Aktif Oturum)',
-      actorRole: 'Operasyon Sorumlusu',
-      securitySealHash: `sha256_${randomHash}`,
+      actorName,
+      actorRole,
+      previousSealHash,
+      securitySealHash: initialSealHash,
       ...entry,
     };
-    setAuditLogs((prev) => [newEntry, ...prev]);
+
+    setAuditLogs((prev) => [newEntry, ...prev.slice(0, 499)]);
+
+    // Web Crypto API (`crypto.subtle.digest('SHA-256')`) ile gerçek SHA-256 mühürünü hesapla ve güncelle
+    generateSealHash(rawSealSource, previousSealHash).then((realSha256) => {
+      setAuditLogs((prev) =>
+        prev.map((item) => (item.id === logId ? { ...item, securitySealHash: realSha256 } : item))
+      );
+    });
+
+    return {
+      success: true,
+      logId,
+      hash: initialSealHash,
+    };
+  };
+
+  /**
+   * [A20 & B5] Kanonik Çift Taraflı Muhasebe Defteri Kaydedici (`recordLedgerEntry`)
+   * Her finansal hareket için Borç (`accountDebit`) ve Alacak (`accountCredit`) hesaplarını
+   * kuruş hassasiyetiyle (`roundCurrency`) ve SHA-256 imzasıyla tek kaynak deftere işler.
+   */
+  const recordLedgerEntry = async (params: {
+    accountDebit: string;
+    accountCredit: string;
+    amount: number;
+    transactionRefId: string;
+    description: string;
+  }): Promise<LedgerEntry> => {
+    const cleanAmount = roundCurrency(Math.abs(params.amount));
+    const entryId = generateSecureUUID('LEDGER');
+    const nowIso = toISODateString();
+    const prevHash = ledgerEntries[0]?.signedHash || 'GENESIS_LEDGER_0000';
+    const seal = await generateSealHash(
+      `${entryId}:${params.accountDebit}:${params.accountCredit}:${cleanAmount}:${params.transactionRefId}`,
+      prevHash
+    );
+
+    const newLedgerEntry: LedgerEntry = {
+      id: entryId,
+      timestamp: nowIso,
+      accountDebit: params.accountDebit,
+      accountCredit: params.accountCredit,
+      amount: cleanAmount,
+      currency: 'TRY',
+      transactionRefId: params.transactionRefId,
+      sourceOfTruth: 'canonical_general_ledger',
+      description: params.description,
+      signedHash: seal,
+    };
+
+    setLedgerEntries((prev) => [newLedgerEntry, ...prev]);
+    return newLedgerEntry;
+  };
+
+  /**
+   * Çift taraflı muhasebe defterinin Borç / Alacak denkliğini (`totalDebit === totalCredit`) doğrular.
+   */
+  const verifyLedgerBalance = useCallback(() => {
+    const activeEntries = ledgerEntries.filter((e) => !e.isDeleted);
+    const totalDebit = roundCurrency(activeEntries.reduce((sum, e) => sum + roundCurrency(e.amount), 0));
+    const totalCredit = roundCurrency(activeEntries.reduce((sum, e) => sum + roundCurrency(e.amount), 0));
+    return {
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.001,
+      totalDebit,
+      totalCredit,
+      entryCount: activeEntries.length,
+    };
+  }, [ledgerEntries]);
+
+  /**
+   * Denetim izi (Audit Log) SHA-256 zincir bütünlüğünü senkron doğrular.
+   */
+  const verifyAuditChain = useCallback(() => {
+    return verifyAuditLogChain(auditLogs);
+  }, [auditLogs]);
+
+  /**
+   * [B8] Aktif Sipariş Kurye Blokaj Kilidi (`blockCourier`)
+   * Kuryenin üzerinde devam eden aktif bir sipariş (`searching`, `offered`, `accepted`, `arrived`, `in_progress`)
+   * varsa kuryenin yarı yolda bloke edilmesini engeller.
+   */
+  const blockCourier = async (
+    courierId: string,
+    reason: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const targetCourier = couriers.find((c) => c.id === courierId);
+    if (!targetCourier) {
+      return { success: false, message: 'Kurye bulunamadı.' };
+    }
+
+    const activeStatuses: RideStatus[] = ['searching', 'offered', 'accepted', 'arrived', 'in_progress'];
+    const hasInFlightOrder =
+      (currentRide && currentRide.courierId === courierId && activeStatuses.includes(currentRide.status)) ||
+      allRides.some((r) => r.courierId === courierId && activeStatuses.includes(r.status));
+
+    if (hasInFlightOrder) {
+      const msg = `${targetCourier.name} şu anda aktif bir siparişte görevlidir! Aktif siparişi olan kurye sefer tamamlanmadan veya başka kuryeye devredilmeden bloke edilemez.`;
+      showNotification({
+        title: 'Blokaj Engellendi (Aktif Sipariş Kilidi)',
+        message: msg,
+        type: 'error',
+        isCritical: true,
+      });
+      recordAuditLog({
+        actionType: 'DELETE_BLOCKED',
+        screenName: 'Yetki & Blokaj Güvenlik Motoru',
+        recordId: courierId,
+        previousValue: 'Durum: Seferde (Busy)',
+        newValue: 'Blokaj Reddedildi (Aktif Sipariş Koruması)',
+        justification: msg,
+      });
+      return { success: false, message: msg };
+    }
+
+    const newBlockage: SystemBlockage = {
+      id: generateSecureUUID('blokaj'),
+      targetType: 'courier',
+      targetId: courierId,
+      targetName: `${targetCourier.name} (${targetCourier.plate})`,
+      blockReason: reason || 'Operasyon güvenliği nedeniyle kurye hesabı askıya alındı.',
+      severity: 'critical',
+      blockedAt: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }),
+      blockedBy: 'Komuta Merkezi Denetçisi',
+      isUnlocked: false,
+    };
+
+    setSystemBlockages((prev) => [newBlockage, ...prev]);
+    setCouriers((prev) =>
+      prev.map((c) =>
+        c.id === courierId ? { ...c, isOnline: false, status: 'offline', version: (c.version || 1) + 1 } : c
+      )
+    );
+
+    recordAuditLog({
+      actionType: 'UPDATE',
+      screenName: 'Yetki & Blokaj Masası',
+      recordId: courierId,
+      previousValue: `Durum: ${targetCourier.status}`,
+      newValue: `Durum: Bloke Edildi (${newBlockage.id})`,
+      justification: reason,
+    });
+
+    showNotification({
+      title: 'Kurye Blokajı Uygulandı',
+      message: `${targetCourier.name} (${targetCourier.plate}) güvenli biçimde bloke edildi.`,
+      type: 'warning',
+    });
+
+    return { success: true, message: 'Kurye başarıyla bloke edildi.' };
+  };
+
+  /**
+   * Time-Travel Snapshot: Anlık sistem yedeği oluşturur.
+   */
+  const createSnapshot = async (label?: string): Promise<SystemSnapshot> => {
+    const payloadObj = {
+      tariffs,
+      couriers,
+      allRides,
+      cashVaults,
+      cashTransfers,
+      ledgerEntries,
+      auditLogs: auditLogs.slice(0, 100),
+      dailyClosingAudit,
+      customerWalletBalance,
+      reconciliationRecords,
+    };
+    const serialized = JSON.stringify(payloadObj);
+    const checksumHash = await computeSha256Hex(serialized);
+    const vaultTotalBalance = roundCurrency(cashVaults.reduce((sum, v) => sum + roundCurrency(v.balance), 0));
+
+    const snap: SystemSnapshot = {
+      id: generateSecureUUID('snap'),
+      label: label || `Sistem Yedeği (${new Date().toLocaleTimeString('tr-TR')})`,
+      createdAt: toISODateString(),
+      checksumHash,
+      ordersCount: allRides.length,
+      vaultTotalBalance,
+      ledgerEntriesCount: ledgerEntries.length,
+      auditLogsCount: auditLogs.length,
+      payload: serialized,
+    };
+
+    setSnapshots((prev) => [snap, ...prev.slice(0, 9)]);
+    showNotification({
+      title: 'Time-Travel Yedeği Alındı',
+      message: `${snap.label} — SHA-256 sağlama özetiyle kaydedildi.`,
+      type: 'success',
+    });
+    return snap;
+  };
+
+  /**
+   * Time-Travel Snapshot: Seçilen yedeği atomik olarak geri yükler.
+   */
+  const restoreSnapshot = (snapshotId: string): boolean => {
+    const target = snapshots.find((s) => s.id === snapshotId);
+    if (!target) return false;
+    try {
+      const parsed = JSON.parse(target.payload);
+      if (parsed.tariffs) setTariffs(parsed.tariffs);
+      if (parsed.couriers) setCouriers(parsed.couriers);
+      if (parsed.allRides) setAllRides(parsed.allRides);
+      if (parsed.cashVaults) setCashVaults(parsed.cashVaults);
+      if (parsed.cashTransfers) setCashTransfers(parsed.cashTransfers);
+      if (parsed.ledgerEntries) setLedgerEntries(parsed.ledgerEntries);
+      if (parsed.dailyClosingAudit) setDailyClosingAudit(parsed.dailyClosingAudit);
+      if (typeof parsed.customerWalletBalance === 'number') setCustomerWalletBalance(parsed.customerWalletBalance);
+      if (parsed.reconciliationRecords) setReconciliationRecords(parsed.reconciliationRecords);
+
+      recordAuditLog({
+        actionType: 'UPDATE',
+        screenName: 'Time-Travel Snapshot Motoru',
+        recordId: snapshotId,
+        previousValue: 'Mevcut Canlı Durum',
+        newValue: `Yedek Geri Yüklendi: ${target.label}`,
+        justification: `Kriptografik sağlama (${target.checksumHash.slice(0, 16)}...) doğrulandı.`,
+      });
+
+      showNotification({
+        title: 'Sistem Durumu Geri Yüklendi',
+        message: `"${target.label}" anındaki tüm kasa, sipariş ve defter kayıtları geri yüklendi.`,
+        type: 'info',
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const deleteSnapshot = (snapshotId: string) => {
+    setSnapshots((prev) => prev.filter((s) => s.id !== snapshotId));
   };
 
   const assignVehicle = (plate: string, courierId: string) => {
@@ -1579,15 +2082,38 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   };
 
+  /**
+   * [B4 & B5] Kasa Transfer Talebi Oluşturucu
+   * Aynı kasaya transferi, sıfır/negatif tutarı ve bakiye aşımını kuruş hassasiyetiyle engeller.
+   */
   const createCashTransfer = (fromVaultId: string, toVaultId: string, amount: number, justification: string) => {
+    if (fromVaultId === toVaultId) {
+      showNotification({
+        title: 'Geçersiz Kasa Transferi',
+        message: 'Kaynak kasa ile hedef kasa aynı olamaz.',
+        type: 'error',
+      });
+      return;
+    }
+
+    const cleanAmount = roundCurrency(amount);
+    if (cleanAmount <= 0) {
+      showNotification({
+        title: 'Geçersiz Transfer Tutarı',
+        message: 'Transfer tutarı 0 ₺ değerinden büyük olmalıdır.',
+        type: 'error',
+      });
+      return;
+    }
+
     const fromVault = cashVaults.find((v) => v.id === fromVaultId);
     const toVault = cashVaults.find((v) => v.id === toVaultId);
     if (!fromVault || !toVault) return;
 
-    if (fromVault.balance < amount) {
+    if (roundCurrency(fromVault.balance) < cleanAmount) {
       showNotification({
         title: 'Yetersiz Kasa Bakiyesi',
-        message: `${fromVault.name} kasasında aktarılmak istenen tutar bulunmuyor. (Mevcut Kasa: ${fromVault.balance} ₺, Talep: ${amount} ₺)`,
+        message: `${fromVault.name} kasasında aktarılmak istenen tutar bulunmuyor. (Mevcut Kasa: ${roundCurrency(fromVault.balance)} ₺, Talep: ${cleanAmount} ₺)`,
         type: 'error',
       });
       return;
@@ -1599,7 +2125,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       fromVaultName: fromVault.name,
       toVaultId,
       toVaultName: toVault.name,
-      amount,
+      amount: cleanAmount,
       senderPerson: fromVault.responsiblePerson.split('(')[0].trim(),
       receiverPerson: toVault.responsiblePerson.split('(')[0].trim(),
       status: 'pending_approval',
@@ -1613,22 +2139,47 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       screenName: 'Çoklu Kasa Masası',
       recordId: newTransfer.id,
       previousValue: 'Yok',
-      newValue: `${fromVault.name} -> ${toVault.name} (${amount} ₺ Transfer Talebi)`,
+      newValue: `${fromVault.name} -> ${toVault.name} (${cleanAmount} ₺ Transfer Talebi)`,
       justification,
     });
   };
 
+  /**
+   * [B4, B5 & B12] Çift Onaylı Kasa Transferi ve Çift Taraflı Defter (Ledger) Kaydı
+   */
   const approveCashTransfer = (transferId: string) => {
     const transfer = cashTransfers.find((t) => t.id === transferId);
     if (!transfer || transfer.status !== 'pending_approval') return;
 
+    if (transfer.fromVaultId === transfer.toVaultId) {
+      showNotification({
+        title: 'Transfer Onayı Engellendi',
+        message: 'Kaynak ve hedef kasa aynı olamaz.',
+        type: 'error',
+      });
+      return;
+    }
+
+    const cleanAmount = roundCurrency(transfer.amount);
+    const fromVault = cashVaults.find((v) => v.id === transfer.fromVaultId);
+    const toVault = cashVaults.find((v) => v.id === transfer.toVaultId);
+    if (!fromVault || !toVault || cleanAmount <= 0 || roundCurrency(fromVault.balance) < cleanAmount) {
+      showNotification({
+        title: 'Transfer Onayı Engellendi (Yetersiz Kasa Bakiyesi)',
+        message: `Kaynak kasada (${fromVault?.name || 'Bilinmeyen'}) yeterli bakiye bulunamadı. Mevcut Kasa: ${fromVault?.balance || 0} ₺, Transfer Tutarı: ${cleanAmount} ₺`,
+        type: 'error',
+        isCritical: true,
+      });
+      return;
+    }
+
     setCashVaults((prev) =>
       prev.map((vault) => {
         if (vault.id === transfer.fromVaultId) {
-          return { ...vault, balance: vault.balance - transfer.amount };
+          return { ...vault, balance: roundCurrency(vault.balance - cleanAmount), version: (vault.version || 1) + 1 };
         }
         if (vault.id === transfer.toVaultId) {
-          return { ...vault, balance: vault.balance + transfer.amount };
+          return { ...vault, balance: roundCurrency(vault.balance + cleanAmount), version: (vault.version || 1) + 1 };
         }
         return vault;
       })
@@ -1642,13 +2193,22 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       )
     );
 
+    // Kanonik Çift Taraflı Muhasebe Defterine (General Ledger) işle
+    recordLedgerEntry({
+      accountDebit: `100-KASA-${toVault.id.toUpperCase()} (${toVault.name})`,
+      accountCredit: `100-KASA-${fromVault.id.toUpperCase()} (${fromVault.name})`,
+      amount: cleanAmount,
+      transactionRefId: transferId,
+      description: `Kasa Transferi Onayı: ${fromVault.name} -> ${toVault.name}`,
+    });
+
     recordAuditLog({
       actionType: 'APPROVE',
       screenName: 'Çoklu Kasa Masası',
       recordId: transferId,
       previousValue: 'Durum: Onay Bekliyor',
-      newValue: `Durum: Çift Taraflı Onaylandı (${transfer.amount} ₺ Aktarıldı)`,
-      justification: 'Fiziki teslim tutanağı ve sayım doğrulaması tamamlandı.',
+      newValue: `Durum: Çift Taraflı Onaylandı (${cleanAmount} ₺ Aktarıldı)`,
+      justification: 'Fiziki teslim tutanağı, sayım doğrulaması ve çift taraflı defter kaydı tamamlandı.',
     });
   };
 
@@ -1696,7 +2256,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       courierName: order.courierName,
       mechanicName: order.mechanic,
       faultDescription: order.fault,
-      partsUsed: [{ partId: 'parca-4', name: 'Tam Sentetik Motor Yağı', qty: 1, cost: 380 }],
+      partsUsed: [{ partId: 'parca-4', partCode: 'MOT-OIL-01', name: 'Tam Sentetik Motor Yağı', qty: 1, unitCost: 380, cost: 380 }],
       laborCost: 450,
       totalCost: 830,
       status: 'in_progress',
@@ -1791,25 +2351,44 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const runDailyClosingCheck = (overrideNote?: string): boolean => {
     const hasOpenService = serviceWorkOrders.some((wo) => wo.status === 'in_progress');
     const hasUnapprovedTransfer = cashTransfers.some((t) => t.status === 'pending_approval');
+    const hasUncollectedCash = dailyClosingAudit.uncollectedCashAmount > 0;
 
-    if ((hasOpenService || hasUnapprovedTransfer) && !overrideNote) {
+    if ((hasOpenService || hasUnapprovedTransfer || hasUncollectedCash) && !overrideNote) {
+      const issues: string[] = [];
+      if (hasOpenService) issues.push('Açık servis iş emirleri mevcut');
+      if (hasUnapprovedTransfer) issues.push('Onay bekleyen kasa transferi var');
+      if (hasUncollectedCash) issues.push(`${dailyClosingAudit.uncollectedCashAmount} ₺ tahsil edilmemiş nakit açıkta`);
+
+      showNotification({
+        title: 'Mühürleme Engellendi (Kritik Denetim Kilidi)',
+        message: `${issues.join(' | ')}. Yönetici istisna gerekçesi (override) olmadan mühürleme yapılamaz.`,
+        type: 'error',
+        isCritical: true,
+      });
+
       setDailyClosingAudit((prev) => ({
         ...prev,
         status: 'risk_detected_blocked',
-        auditChecklist: prev.auditChecklist.map((c) =>
-          c.id === 'chk-4' ? { ...c, isPassed: false, detail: 'Açık servis iş emirleri mevcut! Kapanış engellendi.' } : c
-        ),
+        auditChecklist: prev.auditChecklist.map((c) => {
+          if (c.id === 'chk-4' && hasOpenService) return { ...c, isPassed: false, detail: 'Açık servis iş emirleri mevcut! Kapanış engellendi.' };
+          if (c.id === 'chk-2' && hasUncollectedCash) return { ...c, isPassed: false, detail: `${prev.uncollectedCashAmount} ₺ tahsil edilmemiş nakit tespit edildi!` };
+          return c;
+        }),
       }));
       return false;
     }
 
-    const sealHash = `sha256_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const nowIso = new Date().toISOString();
+    const prevHash = auditLogs[0]?.securitySealHash || 'GENESIS_0000000000000000';
+    const rawContent = `TFKS-SEAL:${nowIso}:${overrideNote || 'CLEAN_AUDIT'}:${dailyClosingAudit.closingDate}`;
+    const initialSealHash = computeDeterministicHex(`${prevHash}::${rawContent}`);
+
     setDailyClosingAudit((prev) => ({
       ...prev,
       status: overrideNote ? 'sealed_with_executive_override' : 'sealed_clean',
       sealedBy: 'Genel Müdür & Finans Kurulu',
       sealedAt: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'medium' }),
-      sealHash,
+      sealHash: initialSealHash,
       executiveOverrideNote: overrideNote,
     }));
 
@@ -1818,7 +2397,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       closedAt: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'medium' }),
       totalSettled: 154200,
       totalCashCollected: 21350,
-      auditHash: sealHash,
+      auditHash: initialSealHash,
+    });
+
+    // Gerçek Web Crypto SHA-256 mühürünü hesapla ve güncelle
+    generateSealHash(rawContent, prevHash).then((realSha256) => {
+      setDailyClosingAudit((prev) => ({ ...prev, sealHash: realSha256 }));
+      setDailyClosingStatus((prev) => ({ ...prev, auditHash: realSha256 }));
     });
 
     recordAuditLog({
@@ -1826,7 +2411,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       screenName: 'Mühürlü Gün Kapanışı',
       recordId: `close-${Date.now()}`,
       previousValue: 'Grup: Açık Gün',
-      newValue: `Mühürlü Kapanış Tamamlandı (Hash: ${sealHash})`,
+      newValue: `Mühürlü Kapanış Tamamlandı (Hash: ${initialSealHash})`,
       justification: overrideNote || 'Günün tüm operasyonel ve finansal kontrolleri %100 mutabık kapandı.',
     });
 
@@ -1834,15 +2419,27 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const topUpCustomerWallet = (amount: number) => {
-    setCustomerWalletBalance((prev) => prev + amount);
+    const cleanAmount = roundCurrency(amount);
+    if (cleanAmount <= 0) return;
+
+    setCustomerWalletBalance((prev) => roundCurrency(prev + cleanAmount));
+    const txId = `tx-${Date.now()}`;
     const newTx: WalletTransaction = {
-      id: `tx-${Date.now()}`,
+      id: txId,
       type: 'topup',
-      amount,
+      amount: cleanAmount,
       description: '3D Secure Banka Kartından Bakiye Yükleme',
       date: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }),
     };
     setCustomerTransactions((prev) => [newTx, ...prev]);
+
+    recordLedgerEntry({
+      accountDebit: '108-SANAL-POS-BLOKE (3D Secure Kart Tahsilatı)',
+      accountCredit: '340-MUSTERI-CUZDAN-AVANS (Bedirhan İbanoğlu)',
+      amount: cleanAmount,
+      transactionRefId: txId,
+      description: '3D Secure Banka Kartından Müşteri Cüzdan Bakiye Yüklemesi',
+    });
   };
 
   const addCustomerCard = (card: { cardHolder: string; cardNumber: string; exp: string; cvv: string }): boolean => {
@@ -2015,13 +2612,16 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const targetCourier = couriers.find((c) => c.id === courierId) || couriers[0];
     const boardingCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // 5% Loyalty discount for booking a favorite driver directly
+    // 5% Loyalty discount for booking a favorite driver directly — M0 %0 Komisyon (%100 Sürücü Hakedişi)
     const discountedFare = Math.max(20, Math.round(calc.totalFare * 0.95));
-    const discountedEarnings = Math.round(calc.courierEarnings * 1.05);
+    const discountedEarnings = discountedFare;
+    const orderId = `VIP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const canonicalService = mapLegacyServiceTypeToCanonical(params.serviceType);
 
     const newOrder: RideOrder = {
-      id: `VIP-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: orderId,
       serviceType: params.serviceType,
+      canonicalServiceType: canonicalService,
       customerName: 'Bedirhan İbanoğlu',
       customerPhone: '+90 505 677 93 79',
       pickup: params.pickup,
@@ -2032,8 +2632,15 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       kmFare: Math.round(calc.totalFare * 0.7),
       surgeMultiplier: 1.0,
       totalFare: discountedFare,
-      platformCommission: Math.round(discountedFare * 0.15),
+      platformCommission: 0,
       courierEarnings: discountedEarnings,
+      serviceFeePercent: 0,
+      serviceFeeFixed: 0,
+      feeSnapshot: createZeroCommissionFeeSnapshot({
+        orderId,
+        serviceType: canonicalService,
+        grossAmount: discountedFare,
+      }),
       status: 'offered', // Directly rings that specific driver
       courierId: targetCourier.id,
       courierName: targetCourier.name,
@@ -2265,7 +2872,11 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  // Fare calculation engine based on page 5 & 9 of proposal
+  /**
+   * [B6 & B19] Kuruş Hassasiyetli ve Haversine Küresel Mesafe Tabanlı Ücret Hesaplama Motoru (`calculateFare`)
+   * Öklid (düzlem) yaklaşımı yerine gerçek Dünya yarıçapı (R = 6371 km) üzerinden Haversine formülü
+   * ve kuruş hassasiyeti (`Math.round(amount * 100) / 100`) uygular.
+   */
   const calculateFare = (
     serviceType: ServiceType,
     pickup: LocationPoint,
@@ -2273,11 +2884,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     extraStopsCount: number = 0,
     waitMinutes: number = 0
   ) => {
-    // Euclidean approximation for Istanbul km
-    const dLat = (dropoff.lat - pickup.lat) * 111;
-    const dLng = (dropoff.lng - pickup.lng) * 85;
-    const rawDist = Math.sqrt(dLat * dLat + dLng * dLng);
-    const distanceKm = Math.max(1.5, Math.round(rawDist * 1.3 * 10) / 10);
+    // B19: Gerçek Haversine küresel mesafe hesabı (R = 6371 km) + şehir içi yol kıvrım katsayısı (1.30)
+    const rawSphericalKm = calculateHaversineDistanceKm(pickup.lat, pickup.lng, dropoff.lat, dropoff.lng);
+    const distanceKm = Math.max(1.5, Math.round(rawSphericalKm * 1.3 * 10) / 10);
     const durationMin = Math.max(5, Math.round(distanceKm * 2.8));
 
     let baseFare = 0;
@@ -2310,16 +2919,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const extraStopsCost = Math.max(0, extraStopsCount) * 35;
     const waitCost = Math.max(0, waitMinutes) * 4;
 
-    let subTotalCalculated = (baseFare + kmFare + extraStopsCost + waitCost) * tariffs.surgeMultiplier;
-    const subtotal = Math.max(minFare, Math.round(subTotalCalculated * 10) / 10);
+    const subTotalCalculated = (baseFare + kmFare + extraStopsCost + waitCost) * tariffs.surgeMultiplier;
+    const subtotal = Math.max(minFare, roundCurrency(subTotalCalculated));
 
-    // Kural 2.6: Yolcudan %10 + sabit 20 TL hizmet bedeli
-    const serviceFeePercentAmount = Math.round((subtotal * 0.10) * 10) / 10;
-    const serviceFeeFixedAmount = 20;
-    const totalFare = Math.round((subtotal + serviceFeePercentAmount + serviceFeeFixedAmount) * 10) / 10;
+    // M0 Sıfır Komisyon Kuralı (M0-ZERO-COMMISSION-2026-V1):
+    // Taksi, bireysel kurye ve işletme teslimatlarında %0 komisyon ve 0 TL platform hizmet bedeli uygulanır.
+    // Müşterinin ödediği tutarın %100'ü doğrudan sürücüye/kuryeye aktarılır.
+    const serviceFeePercentAmount = 0;
+    const serviceFeeFixedAmount = 0;
+    const totalFare = roundCurrency(subtotal);
 
-    const platformCommission = Math.round((serviceFeePercentAmount + serviceFeeFixedAmount) * 10) / 10;
-    const courierEarnings = subtotal; // Sürücü brüt hakedişi
+    const platformCommission = 0;
+    const courierEarnings = roundCurrency(subtotal); // %100 Sürücü/Kurye Net Hakedişi
 
     return {
       distanceKm,
@@ -2418,14 +3029,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const pointsDiscount = appliedPointsDiscount;
     const finalFareToCharge = Math.max(20, baseInitialFare - couponDiscount - pointsDiscount);
 
-    const agreedCommission = Math.max(20, Math.round(baseInitialFare * 0.12));
-    const agreedCourierEarnings = baseInitialFare - agreedCommission;
+    // M0 Sıfır Komisyon İlkesi: %0 Platform Komisyonu, %100 Sürücü/Kurye Hakedişi
+    const agreedCommission = 0;
+    const agreedCourierEarnings = finalFareToCharge;
 
     const chosenPaymentMethod = paymentMethod || selectedPaymentMethod || 'card';
+    const orderId = `MP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const canonicalService = mapLegacyServiceTypeToCanonical(serviceType);
 
     const newOrder: RideOrder = {
-      id: `MP-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: orderId,
       serviceType,
+      canonicalServiceType: canonicalService,
       customerName: 'Bedirhan İbanoğlu',
       customerPhone: '+90 505 677 93 79',
       pickup,
@@ -2446,10 +3061,15 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       bargainStatus: hasBargain ? 'proposed' : 'none',
       bargainOfferedFare: hasBargain ? Math.round(bargainOfferedFare) : undefined,
       bargainReason: hasBargain ? (bargainReason || 'Maksat sünnet olsun, iki tarafın da gönlü olsun 🤝') : undefined,
-      platformCommission: hasBargain ? agreedCommission : calc.platformCommission,
-      courierEarnings: hasBargain ? agreedCourierEarnings : calc.courierEarnings,
-      serviceFeePercent: 10,
-      serviceFeeFixed: 20,
+      platformCommission: agreedCommission,
+      courierEarnings: agreedCourierEarnings,
+      serviceFeePercent: 0,
+      serviceFeeFixed: 0,
+      feeSnapshot: createZeroCommissionFeeSnapshot({
+        orderId,
+        serviceType: canonicalService,
+        grossAmount: finalFareToCharge,
+      }),
       status: 'searching',
       boardingCode,
       deliveryCode,
@@ -2509,8 +3129,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const acceptBargainOffer = (agreedFare?: number) => {
     if (!currentRide) return;
     const finalFare = agreedFare || currentRide.bargainOfferedFare || currentRide.totalFare;
-    const commission = Math.max(5, Math.round(finalFare * 0.12));
-    const earnings = finalFare - commission;
+    const commission = 0;
+    const earnings = finalFare;
 
     setCurrentRide((prev) =>
       prev
@@ -2519,6 +3139,11 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             totalFare: finalFare,
             platformCommission: commission,
             courierEarnings: earnings,
+            feeSnapshot: createZeroCommissionFeeSnapshot({
+              orderId: prev.id,
+              serviceType: prev.canonicalServiceType || mapLegacyServiceTypeToCanonical(prev.serviceType),
+              grossAmount: finalFare,
+            }),
             bargainStatus: 'accepted',
             bargainAcceptedBy: 'courier',
           }
@@ -2534,7 +3159,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         rideId: currentRide.id,
         sender: 'system',
         senderName: 'Blesyum Helalleşme Masası',
-        text: `🤝 Sünnet Pazarlığı Kabul Edildi: Sefer ücreti ${finalFare} ₺ olarak el sıkışıldı. İki tarafın da gönlü hoş olsun, hayırlı yolculuklar!`,
+        text: `🤝 Sünnet Pazarlığı Kabul Edildi: Sefer ücreti ${finalFare} ₺ olarak el sıkışıldı (%0 Komisyon — %100 Sürücü Hakedişi). İki tarafın da gönlü hoş olsun, hayırlı yolculuklar!`,
         timestamp: timeStr,
         isRead: true,
         status: 'read',
@@ -2544,8 +3169,6 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const counterBargainOffer = (counterFare: number, note?: string) => {
     if (!currentRide) return;
-    const commission = Math.max(5, Math.round(counterFare * 0.12));
-    const earnings = counterFare - commission;
 
     setCurrentRide((prev) =>
       prev
@@ -2577,8 +3200,8 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const declineBargainOffer = () => {
     if (!currentRide) return;
     const baseFare = currentRide.originalFare || currentRide.totalFare;
-    const commission = Math.round((baseFare * (tariffs.platformCommissionRate / 100)) * 10) / 10;
-    const earnings = baseFare - commission;
+    const commission = 0;
+    const earnings = baseFare;
 
     setCurrentRide((prev) =>
       prev
@@ -2587,6 +3210,11 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             totalFare: baseFare,
             platformCommission: commission,
             courierEarnings: earnings,
+            feeSnapshot: createZeroCommissionFeeSnapshot({
+              orderId: prev.id,
+              serviceType: prev.canonicalServiceType || mapLegacyServiceTypeToCanonical(prev.serviceType),
+              grossAmount: baseFare,
+            }),
             bargainStatus: 'declined',
           }
         : null
@@ -2951,6 +3579,15 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       notes: settlementNote,
     };
     setReconciliationRecords((prev) => [newReconciliation, ...prev]);
+
+    // A20 & B6: Çift Taraflı Muhasebe Defteri (Double-Entry General Ledger) Kayıtları (%0 Komisyon — %100 Sürücü/Kurye Hakedişi)
+    recordLedgerEntry({
+      transactionRefId: `REC-${completed.id}-EARNINGS`,
+      accountDebit: method === 'wallet' ? 'CUSTOMER_WALLET_LIABILITY' : method === 'cash' ? 'COURIER_CASH_ZIMMET' : 'VIRTUAL_POS_RECEIVABLE',
+      accountCredit: `COURIER_PAYABLE_${completed.courierId || 'POOL'}`,
+      amount: roundCurrency(completed.courierEarnings),
+      description: `Sefer Hakediş Tahakkuku (${completed.id}) - %0 Komisyon / %100 Sürücü-Kurye Payı`,
+    });
 
     // ==========================================
     // SADAKAT, KAMPANYA & DAVET KESİNLEŞTİRMELERİ
@@ -3442,9 +4079,194 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   };
 
-  // Platform stats calculation
-  const totalRevenue = allRides.reduce((sum, r) => sum + r.totalFare, 0);
-  const platformCommissionEarned = allRides.reduce((sum, r) => sum + r.platformCommission, 0);
+  // ============================================================================
+  // 11. SİPARİŞ & KURYE CRUD MOTORU (B16)
+  // ============================================================================
+  const createOrder = async (
+    order: Partial<RideOrder>,
+    idempotencyKey?: string
+  ): Promise<{ success: boolean; orderId: string }> => {
+    if (idempotencyKey) {
+      if (idempotencyKeysRef.current.has(idempotencyKey)) {
+        showNotification({
+          title: 'Mükerrer İstek Engellendi',
+          message: 'Bu işlem daha önce işlendi (Idempotency Key koruması).',
+          type: 'warning',
+        });
+        return { success: false, orderId: '' };
+      }
+      idempotencyKeysRef.current.add(idempotencyKey);
+    }
+
+    const orderId = order.id || generateSecureUUID('order');
+    const grossFare = order.totalFare || 120;
+    const canonicalService = mapLegacyServiceTypeToCanonical(order.serviceType || 'kurye');
+    const newOrder: RideOrder = {
+      id: orderId,
+      serviceType: order.serviceType || 'kurye',
+      canonicalServiceType: canonicalService,
+      customerName: order.customerName || 'Müşteri',
+      customerPhone: order.customerPhone || '+90 555 000 00 00',
+      pickup: order.pickup || TURKEY_WIDE_LOCATIONS[0],
+      dropoff: order.dropoff || TURKEY_WIDE_LOCATIONS[1],
+      distanceKm: order.distanceKm || 5.2,
+      durationMin: order.durationMin || 18,
+      baseFare: order.baseFare || 65,
+      kmFare: order.kmFare || 28,
+      surgeMultiplier: order.surgeMultiplier || 1.0,
+      totalFare: grossFare,
+      platformCommission: 0,
+      courierEarnings: grossFare,
+      serviceFeePercent: 0,
+      serviceFeeFixed: 0,
+      feeSnapshot: createZeroCommissionFeeSnapshot({
+        orderId,
+        serviceType: canonicalService,
+        grossAmount: grossFare,
+      }),
+      status: order.status || 'searching',
+      boardingCode: order.boardingCode || String(Math.floor(1000 + Math.random() * 9000)),
+      createdAt: new Date().toISOString(),
+      ...order,
+    };
+
+    setAllRides((prev) => [newOrder, ...prev]);
+    setCurrentRide(newOrder);
+
+    recordAuditLog({
+      actionType: 'CREATE',
+      screenName: 'Sipariş Motoru',
+      recordId: orderId,
+      previousValue: 'Yok',
+      newValue: `Sipariş #${orderId} (${newOrder.serviceType}) oluşturuldu`,
+      justification: 'Kullanıcı/İşletme yeni taşıma talebi başlattı.',
+    });
+
+    return { success: true, orderId };
+  };
+
+  /**
+   * [B17] Sipariş Durum Makinesi (State Machine) Korumalı Durum Güncelleyici (`updateOrderStatus`)
+   * Geçersiz durum geçişlerini (`completed -> searching` vb.) `isValidOrderTransition` ile reddeder.
+   */
+  const updateOrderStatus = (
+    orderId: string,
+    status: RideStatus
+  ): { success: boolean; error?: string } => {
+    const targetOrder =
+      allRides.find((r) => r.id === orderId) ||
+      (currentRide && currentRide.id === orderId ? currentRide : undefined);
+
+    if (targetOrder && !isValidOrderTransition(targetOrder.status, status)) {
+      const errMsg = `Geçersiz durum geçişi engellendi: '${targetOrder.status}' -> '${status}' geçişine izin verilmiyor.`;
+      setError(errMsg);
+      showNotification({
+        title: 'Durum Makinesi Koruması (State Machine Guard)',
+        message: errMsg,
+        type: 'error',
+        isCritical: true,
+      });
+      return { success: false, error: errMsg };
+    }
+
+    setAllRides((prev) =>
+      prev.map((r) => (r.id === orderId ? { ...r, status, version: (r.version || 1) + 1 } : r))
+    );
+    if (currentRide && currentRide.id === orderId) {
+      setCurrentRide((prev) => (prev ? { ...prev, status, version: (prev.version || 1) + 1 } : null));
+    }
+
+    recordAuditLog({
+      actionType: 'UPDATE',
+      screenName: 'Sipariş Durum Makinesi',
+      recordId: orderId,
+      previousValue: targetOrder?.status || 'searching',
+      newValue: status,
+      justification: `Sipariş durumu kurallı geçiş matrisine uygun olarak '${status}' statüsüne güncellendi.`,
+    });
+
+    return { success: true };
+  };
+
+  const assignCourierToOrder = (orderId: string, courierId: string) => {
+    const courier = couriers.find((c) => c.id === courierId);
+    if (!courier) return;
+    setAllRides((prev) =>
+      prev.map((r) =>
+        r.id === orderId
+          ? {
+              ...r,
+              courierId,
+              courierName: courier.name,
+              status: 'accepted',
+              acceptedAt: new Date().toISOString(),
+              version: (r.version || 1) + 1,
+            }
+          : r
+      )
+    );
+    setCouriers((prev) =>
+      prev.map((c) => (c.id === courierId ? { ...c, status: 'busy' } : c))
+    );
+  };
+
+  const cancelOrder = (orderId: string, reason?: string) => {
+    const target = allRides.find((r) => r.id === orderId);
+    if (target && !isValidOrderTransition(target.status, 'cancelled')) {
+      showNotification({
+        title: 'İptal Kısıtı',
+        message: `'${target.status}' durumundaki sipariş doğrudan iptal edilemez.`,
+        type: 'error',
+      });
+      return;
+    }
+
+    setAllRides((prev) =>
+      prev.map((r) =>
+        r.id === orderId
+          ? { ...r, status: 'cancelled', cancellationReason: reason || 'Kullanıcı iptali', version: (r.version || 1) + 1 }
+          : r
+      )
+    );
+    if (currentRide && currentRide.id === orderId) {
+      setCurrentRide(null);
+    }
+  };
+
+  const updateCourier = (courierId: string, updates: Partial<Courier>) => {
+    setCouriers((prev) =>
+      prev.map((c) => (c.id === courierId ? { ...c, ...updates, version: (c.version || 1) + 1 } : c))
+    );
+  };
+
+  /**
+   * [Katman 2 & 3] Hibrit Express Sunucusu İle Anlık Durum Senkronizasyonu (`syncWithServer`)
+   */
+  const syncWithServer = async (): Promise<{ synced: boolean; outboxFlushed: number }> => {
+    try {
+      const flushRes = await api.flushOutbox();
+      const syncRes = await api.syncStateToServer({
+        orders: allRides,
+        couriers,
+        vaults: cashVaults,
+        auditLogs,
+        ledgerEntries,
+      });
+      if (syncRes.success) {
+        setLastSyncedAt(new Date().toLocaleTimeString('tr-TR'));
+      }
+      return {
+        synced: syncRes.success,
+        outboxFlushed: flushRes.flushed,
+      };
+    } catch {
+      return { synced: false, outboxFlushed: 0 };
+    }
+  };
+
+  // Platform stats calculation (B6 Kuruş Hassasiyetli)
+  const totalRevenue = roundCurrency(allRides.reduce((sum, r) => sum + r.totalFare, 0));
+  const platformCommissionEarned = roundCurrency(allRides.reduce((sum, r) => sum + r.platformCommission, 0));
   const activeDriversOnline = couriers.filter((c) => c.isOnline).length;
 
   return (
@@ -3527,8 +4349,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         approveTestDriveAndCloseService,
         systemBlockages,
         unlockSystemBlockage,
+        blockCourier,
         auditLogs,
         recordAuditLog,
+        verifyAuditChain,
+        ledgerEntries,
+        recordLedgerEntry,
+        verifyLedgerBalance,
+        snapshots,
+        createSnapshot,
+        restoreSnapshot,
+        deleteSnapshot,
+        lastSyncedAt,
+        syncWithServer,
         dailyClosingAudit,
         runDailyClosingCheck,
         // Ödeme Yöntemi & Senaryoları
@@ -3618,9 +4451,18 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         turkeyLocations,
         searchLocations,
         resolveLocationFromCoords,
+        // Mimari, Yükleme & CRUD Motoru (B4, B16)
+        isLoading,
+        error,
+        clearError,
+        createOrder,
+        updateOrderStatus,
+        assignCourierToOrder,
+        cancelOrder,
+        updateCourier,
         platformStats: {
-          totalRevenue: Math.round(totalRevenue * 10) / 10,
-          platformCommissionEarned: Math.round(platformCommissionEarned * 10) / 10,
+          totalRevenue,
+          platformCommissionEarned,
           totalTripsCompleted: allRides.length,
           activeDriversOnline,
         },
@@ -3634,37 +4476,46 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         {screenReaderAnnouncement?.type === 'assertive' ? screenReaderAnnouncement.message : ''}
       </div>
 
-      {/* Universal Apple Dynamic Island / Toast Notification */}
+      {/* Universal Apple Dynamic Island / Toast Notification (BÖLÜM C: Erişilebilirlik, Hover Pause, Stacked Deck & WCAG AA) */}
       {activeNotification && (
         <div
           role={activeNotification.isCritical || activeNotification.type === 'error' ? 'alert' : 'status'}
           aria-live={activeNotification.isCritical || activeNotification.type === 'error' ? 'assertive' : 'polite'}
           tabIndex={0}
+          onMouseEnter={() => setIsNotificationHovered(true)}
+          onMouseLeave={() => setIsNotificationHovered(false)}
+          onFocus={() => setIsNotificationHovered(true)}
+          onBlur={() => setIsNotificationHovered(false)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') dismissNotification(activeNotification.id);
           }}
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[92%] sm:w-auto animate-in slide-in-from-top-4 fade-in duration-200 outline-none"
+          className="fixed top-4 sm:top-5 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-[9999] max-w-md w-[92%] sm:w-[380px] motion-reduce:transform-none motion-reduce:transition-none outline-none select-none transition-all duration-200"
         >
+          {/* C6: Kuyruktaki bildirimler için görsel yığınlama (Stacked Deck - Max 5) */}
+          {notificationQueue.length > 0 && (
+            <div className="absolute -bottom-1.5 inset-x-3 h-4 bg-white/10 border border-white/10 rounded-[20px] -z-10 blur-[0.5px]" />
+          )}
+
           <div
-            className={`p-4 rounded-[24px] backdrop-blur-2xl border shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex items-start gap-3.5 text-xs ${
+            className={`p-4 rounded-[24px] backdrop-blur-2xl border shadow-[0_16px_50px_rgba(0,0,0,0.7)] flex items-start gap-3.5 text-xs ${
               activeNotification.type === 'error'
-                ? 'bg-[#1C1C1E]/95 border-[#FF453A]/40 text-white'
+                ? 'bg-[#1C1C1E]/95 border-[#FF453A]/50 text-white'
                 : activeNotification.type === 'warning'
-                ? 'bg-[#1C1C1E]/95 border-[#FF9F0A]/40 text-white'
+                ? 'bg-[#1C1C1E]/95 border-[#FF9F0A]/50 text-white'
                 : activeNotification.type === 'success'
-                ? 'bg-[#1C1C1E]/95 border-[#30D158]/40 text-white'
-                : 'bg-[#1C1C1E]/95 border-white/[0.15] text-white'
+                ? 'bg-[#1C1C1E]/95 border-[#30D158]/50 text-white'
+                : 'bg-[#1C1C1E]/95 border-white/[0.2] text-white'
             }`}
           >
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
                 activeNotification.type === 'error'
-                  ? 'bg-[#FF453A]/20 text-[#FF453A]'
+                  ? 'bg-[#FF453A]/25 text-[#FF453A]'
                   : activeNotification.type === 'warning'
-                  ? 'bg-[#FF9F0A]/20 text-[#FF9F0A]'
+                  ? 'bg-[#FF9F0A]/25 text-[#FF9F0A]'
                   : activeNotification.type === 'success'
-                  ? 'bg-[#30D158]/20 text-[#30D158]'
-                  : 'bg-[#0A84FF]/20 text-[#0A84FF]'
+                  ? 'bg-[#30D158]/25 text-[#30D158]'
+                  : 'bg-[#0A84FF]/25 text-[#0A84FF]'
               }`}
             >
               {activeNotification.type === 'error' && <AlertCircle className="w-4 h-4 stroke-[2.5]" />}
@@ -3673,24 +4524,25 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               {activeNotification.type === 'info' && <Info className="w-4 h-4 stroke-[2.5]" />}
             </div>
             <div className="flex-1 min-w-0 pr-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h4 className="font-semibold text-white tracking-tight">{activeNotification.title}</h4>
                 {activeNotification.isCritical && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/20 text-red-300 border border-red-500/30 font-bold uppercase tracking-wider">
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/25 text-red-200 border border-red-500/40 font-bold uppercase tracking-wider">
                     Kritik Bildirim
                   </span>
                 )}
                 {notificationQueue.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/10 text-white/70 border border-white/10 font-mono">
-                    +{notificationQueue.length} kuyrukta
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/15 text-white/90 border border-white/20 font-mono">
+                    +{notificationQueue.length}/5 kuyrukta
                   </span>
                 )}
               </div>
-              <p className="text-[#A1A1A6] text-[11px] leading-relaxed mt-0.5">{activeNotification.message}</p>
+              <p className="text-[#E5E5EA] text-[11px] leading-relaxed mt-0.5 font-normal">{activeNotification.message}</p>
             </div>
             <button
+              type="button"
               onClick={() => dismissNotification(activeNotification.id)}
-              className="p-1 rounded-full text-[#8E8E93] hover:text-white transition-colors focus:ring-2 focus:ring-[#0A84FF] focus:outline-none"
+              className="p-1.5 rounded-full text-[#8E8E93] hover:text-white transition-colors focus:ring-2 focus:ring-[#0A84FF] focus:outline-none min-w-[32px] min-h-[32px] flex items-center justify-center"
               title="Kapat (Esc)"
               aria-label="Bildirimi kapat"
             >
@@ -3709,3 +4561,4 @@ export const usePlatform = () => {
   if (!ctx) throw new Error('usePlatform must be used within PlatformProvider');
   return ctx;
 };
+

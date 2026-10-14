@@ -94,11 +94,11 @@ export const DriverApplicationModal: React.FC<DriverApplicationModalProps> = ({ 
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-[#30D158]" />
               <h3 className="text-lg font-bold text-white tracking-tight">
-                MotoPilot Sürücü & Kurye Başvurusu
+                Taksi Şoförü & Kurye Başvurusu (%0 Komisyon)
               </h3>
             </div>
             <p className="text-xs text-[#8E8E93] mt-0.5">
-              İstanbul'da kendi motosikletinizle özgürce çalışın, haftalık garantili hakediş kazanın.
+              1. Taksi (TAXI_RIDE) ve 2. Kurye / Teslimat ağında %0 platform komisyonu (%100 net hakediş) ile çalışın.
             </p>
           </div>
           <button
@@ -140,8 +140,8 @@ export const DriverApplicationModal: React.FC<DriverApplicationModalProps> = ({ 
                 <span className="text-[#8E8E93]">Hizmet Tercihi:</span>
                 <span className="text-[#30D158] font-semibold">
                   {generatedApp.servicePreference === 'passenger_and_courier'
-                    ? 'Yolcu (Moto TAG) + Paket'
-                    : 'Yalnızca Express Paket'}
+                    ? '1. Taksi (TAXI_RIDE) + Kurye (%0 Komisyon)'
+                    : '2. Bireysel & İşletme Kurye (%0 Komisyon)'}
                 </span>
               </div>
             </div>
@@ -381,9 +381,9 @@ export const DriverApplicationModal: React.FC<DriverApplicationModalProps> = ({ 
                           : 'bg-white/[0.03] border-white/[0.08]'
                       }`}
                     >
-                      <div className="font-bold text-xs text-white">Yolcu (Moto TAG) + Paket</div>
+                      <div className="font-bold text-xs text-white">1. Taksi (TAXI_RIDE) + Kurye (%0 Komisyon)</div>
                       <p className="text-[10px] text-[#8E8E93] mt-0.5 leading-snug">
-                        Hem yolcu hem acil paket çağrılarını alarak en yüksek kazanç potansiyeli.
+                        Taksi yolcu çağrıları ve paket teslimatlarında %0 komisyon (%100 net hakediş). Motosikletli yolcu (MOTO_PASSENGER_RIDE) M0'da kapalıdır.
                       </p>
                     </button>
 
@@ -396,9 +396,9 @@ export const DriverApplicationModal: React.FC<DriverApplicationModalProps> = ({ 
                           : 'bg-white/[0.03] border-white/[0.08]'
                       }`}
                     >
-                      <div className="font-bold text-xs text-white">Yalnızca Express Paket</div>
+                      <div className="font-bold text-xs text-white">2. Kurye / Teslimat (PERSONAL & MERCHANT)</div>
                       <p className="text-[10px] text-[#8E8E93] mt-0.5 leading-snug">
-                        Restoran, e-ticaret ve kurye paketleri. Yolcu kaskı gerektirmez.
+                        Bireysel ve esnaf/işletme paket teslimatları. %0 platform komisyonu (%100 net kurye hakedişi).
                       </p>
                     </button>
                   </div>

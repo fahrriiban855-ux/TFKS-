@@ -48,7 +48,7 @@ export interface TfksMasterSpec {
 
 export interface WireframeScreen {
   id: string;
-  category: 'customer' | 'courier' | 'admin';
+  category: 'customer' | 'courier' | 'business' | 'admin';
   categoryLabel: string;
   stepNumber: string;
   title: string;

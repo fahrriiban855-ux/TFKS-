@@ -1,0 +1,254 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Public profile information for MotoPilot unified super-app users (excluding PII).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "activeRole": {
+          "type": "string",
+          "enum": ["CUSTOMER", "DRIVER", "COURIER", "BUSINESS", "ADMIN"]
+        },
+        "hybridModeEnabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "activeRole", "hybridModeEnabled", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII document for user email and phone number.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "PlatformOrder": {
+      "title": "PlatformOrder",
+      "description": "Real-time MotoPilot order with strict 0% commission invariant.",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceType": {
+          "type": "string",
+          "enum": ["TAXI_RIDE", "INDIVIDUAL_DELIVERY", "BUSINESS_DELIVERY"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["searching", "offered", "accepted", "arrived", "in_progress", "completed", "cancelled"]
+        },
+        "pickupName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "dropoffName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "totalFare": {
+          "type": "number"
+        },
+        "platformCommission": {
+          "type": "number",
+          "enum": [0]
+        },
+        "courierEarnings": {
+          "type": "number"
+        },
+        "snapshotHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "orderId",
+        "ownerId",
+        "serviceType",
+        "status",
+        "pickupName",
+        "dropoffName",
+        "totalFare",
+        "platformCommission",
+        "courierEarnings",
+        "snapshotHash",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BatchRoutePlan": {
+      "title": "BatchRoutePlan",
+      "description": "Smart Multi-Drop Route Batching plan combining 2-4 corridor packages.",
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "businessId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "corridorName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "packageCount": {
+          "type": "number"
+        },
+        "kmSavedPercent": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["READY", "DISPATCHED", "COMPLETED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["batchId", "ownerId", "businessId", "corridorName", "packageCount", "kmSavedPercent", "status", "createdAt"]
+    },
+    "BusinessWirePaymentNotice": {
+      "title": "BusinessWirePaymentNotice",
+      "description": "Business SaaS weekly membership EFT/Wire payment notification for admin manual approval.",
+      "type": "object",
+      "properties": {
+        "noticeId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "businessId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "wireReferenceCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 64
+        },
+        "amountTl": {
+          "type": "number"
+        },
+        "approvalStatus": {
+          "type": "string",
+          "enum": ["PENDING", "APPROVED", "REJECTED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["noticeId", "ownerId", "businessId", "wireReferenceCode", "amountTl", "approvalStatus", "createdAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted database record for platform administrators.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users_public/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Public user role and hybrid capacity preferences."
+    },
+    "/users_private/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Strictly isolated PII user profile document."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/PlatformOrder" },
+      "description": "Zero-commission transport and delivery orders."
+    },
+    "/batch_routes/{batchId}": {
+      "schema": { "$ref": "#/entities/BatchRoutePlan" },
+      "description": "Multi-drop route batch plans created by businesses."
+    },
+    "/wire_notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/BusinessWirePaymentNotice" },
+      "description": "Business EFT/Wire membership payment notifications."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "System administrator lookup collection."
+    }
+  }
+}

@@ -75,11 +75,11 @@ export const MerchantLeadModal: React.FC<MerchantLeadModalProps> = ({ isOpen, on
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-[#BF5AF2]" />
               <h3 className="text-lg font-bold text-white tracking-tight">
-                İşletme & Restoran Teslimat Talebi
+                Esnaf & İşletme Kaydı — 2 Hafta Ücretsiz & %0 Komisyon
               </h3>
             </div>
             <p className="text-xs text-[#8E8E93] mt-0.5">
-              Kendi kuryenizi istihdam etme maliyetinden kurtulun; 30 dakikada adrese teslim.
+              Sipariş başına %0 komisyon. Doğrulanmış yeni işletmelere 14 gün ücretsiz tanışma paketi (otomatik ücretli yenileme yok).
             </p>
           </div>
           <button
@@ -118,8 +118,8 @@ export const MerchantLeadModal: React.FC<MerchantLeadModalProps> = ({ isOpen, on
                 <span className="font-mono text-white">~{submittedLead.dailyEstimatedDeliveries} paket/gün</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#8E8E93]">Özel İndirim Oranı:</span>
-                <span className="text-[#30D158] font-bold">%{estimatedDiscountRate} Avantaj</span>
+                <span className="text-[#8E8E93]">M0 İşletme Modeli:</span>
+                <span className="text-[#30D158] font-bold">14 Gün Ücretsiz + %0 Sipariş Komisyonu</span>
               </div>
             </div>
 
@@ -255,7 +255,7 @@ export const MerchantLeadModal: React.FC<MerchantLeadModalProps> = ({ isOpen, on
               />
               <div className="flex items-center justify-between text-[11px] text-[#8E8E93]">
                 <span>Aylık ~{monthlyVolume} Teslimat</span>
-                <span className="text-[#30D158] font-bold">Özel barem: %{estimatedDiscountRate} Komisyon İndirimi</span>
+                <span className="text-[#30D158] font-bold">%0 Sipariş Komisyonu + İlk 14 Gün Ücretsiz</span>
               </div>
             </div>
 

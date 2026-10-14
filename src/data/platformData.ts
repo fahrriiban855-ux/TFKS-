@@ -13,6 +13,7 @@ import {
   SystemBlockage,
   AuditLogEntry,
   DailyClosingAudit,
+  LedgerEntry,
 } from '../types/platform';
 
 export const ISTANBUL_LOCATIONS: LocationPoint[] = [
@@ -70,6 +71,7 @@ export const INITIAL_COURIERS: Courier[] = [
   {
     id: 'kurye-1',
     name: 'Mert Aksoy',
+    email: 'mert.aksoy@motopilot.com',
     phone: '+90 532 450 12 88',
     avatar: '🛵',
     plate: '34 BLY 717',
@@ -103,6 +105,7 @@ export const INITIAL_COURIERS: Courier[] = [
   {
     id: 'kurye-2',
     name: 'Serkan Yıldırım',
+    email: 'serkan.yildirim@motopilot.com',
     phone: '+90 541 332 99 10',
     avatar: '🏍️',
     plate: '34 MKP 92',
@@ -136,6 +139,7 @@ export const INITIAL_COURIERS: Courier[] = [
   {
     id: 'kurye-3',
     name: 'Kaan Demir',
+    email: 'kaan.demir@motopilot.com',
     phone: '+90 555 120 74 33',
     avatar: '⚡',
     plate: '34 BLS 404',
@@ -169,6 +173,7 @@ export const INITIAL_COURIERS: Courier[] = [
   {
     id: 'kurye-4',
     name: 'Emre Çetin',
+    email: 'emre.cetin@motopilot.com',
     phone: '+90 505 889 14 20',
     avatar: '📦',
     plate: '34 KRY 88',
@@ -202,6 +207,7 @@ export const INITIAL_COURIERS: Courier[] = [
   {
     id: 'kurye-5',
     name: 'Burak Keskin',
+    email: 'burak.keskin@motopilot.com',
     phone: '+90 530 671 20 45',
     avatar: '🛡️',
     plate: '34 MOT 19',
@@ -244,14 +250,15 @@ export const INITIAL_TARIFFS: TariffSettings = {
   courierPerKm: 32, // 32 TL / km
   courierMinFare: 110, // Kurye minimum ücret
 
-  surgeMultiplier: 1.2, // 1.2x Akşam yoğun saat çarpanı
-  platformCommissionRate: 20, // %20 platform komisyonu
+  surgeMultiplier: 1.0, // 1.0x Standart çarpan
+  platformCommissionRate: 0, // %0 platform sipariş komisyonu (Değiştirilemez M0 İlkesi)
 };
 
 export const INITIAL_PAST_RIDES: RideOrder[] = [
   {
     id: 'BLS-9481',
     serviceType: 'motosiklet',
+    canonicalServiceType: 'TAXI_RIDE',
     customerName: 'Bedirhan İbanoğlu',
     customerPhone: '+90 505 677 93 79',
     pickup: ISTANBUL_LOCATIONS[0], // Beşiktaş
@@ -260,21 +267,24 @@ export const INITIAL_PAST_RIDES: RideOrder[] = [
     durationMin: 14,
     baseFare: 60,
     kmFare: 151.2,
-    surgeMultiplier: 1.2,
-    totalFare: 253.4,
-    platformCommission: 50.68,
-    courierEarnings: 202.72,
+    surgeMultiplier: 1.0,
+    totalFare: 211.2,
+    platformCommission: 0,
+    courierEarnings: 211.2,
+    serviceFeePercent: 0,
+    serviceFeeFixed: 0,
     status: 'completed',
     courierId: 'kurye-1',
     boardingCode: '4821',
     createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
     completedAt: new Date(Date.now() - 1000 * 60 * 105).toISOString(),
     rating: 5,
-    review: 'Trafiğe hiç takılmadan 15 dakikada vardık, çok güvenli sürüş!',
+    review: 'Taksici ustamız tam vaktinde geldi, %0 komisyonla şeffaf ve güvenli yolculuk!',
   },
   {
     id: 'BLS-9482',
     serviceType: 'kurye',
+    canonicalServiceType: 'INDIVIDUAL_DELIVERY',
     customerName: 'Ayşe Karaca',
     customerPhone: '+90 533 112 40 50',
     pickup: ISTANBUL_LOCATIONS[1], // Kadıköy
@@ -285,8 +295,10 @@ export const INITIAL_PAST_RIDES: RideOrder[] = [
     kmFare: 67.2,
     surgeMultiplier: 1.0,
     totalFare: 142.2,
-    platformCommission: 28.44,
-    courierEarnings: 113.76,
+    platformCommission: 0,
+    courierEarnings: 142.2,
+    serviceFeePercent: 0,
+    serviceFeeFixed: 0,
     status: 'completed',
     courierId: 'kurye-2',
     boardingCode: '0000',
@@ -299,7 +311,7 @@ export const INITIAL_PAST_RIDES: RideOrder[] = [
     createdAt: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
     completedAt: new Date(Date.now() - 1000 * 60 * 225).toISOString(),
     rating: 5,
-    review: 'Zamanında teslim edildi, fotoğraf teyidi çok iyi.',
+    review: 'Zamanında teslim edildi, 4 haneli PIN ve fotoğraf teyidi çok iyi.',
   },
 ];
 
@@ -543,8 +555,8 @@ export const INITIAL_SERVICE_WORK_ORDERS: ServiceWorkOrder[] = [
     mechanicName: 'Usta İbrahim Kaya',
     faultDescription: '15.000 Km periyodik bakım + sağ ayna ve yan grenaj değişimi.',
     partsUsed: [
-      { partId: 'parca-1', name: 'Ön Fren Balata Takımı', qty: 1, cost: 480 },
-      { partId: 'parca-4', name: 'Motul 7100 Motor Yağı (1L)', qty: 1, cost: 380 },
+      { partId: 'parca-1', partCode: 'FRN-BLT-01', name: 'Ön Fren Balata Takımı', qty: 1, unitCost: 480, cost: 480 },
+      { partId: 'parca-4', partCode: 'YAG-MOT-04', name: 'Motul 7100 Motor Yağı (1L)', qty: 1, unitCost: 380, cost: 380 },
     ],
     laborCost: 650,
     totalCost: 1510,
@@ -559,7 +571,7 @@ export const INITIAL_SERVICE_WORK_ORDERS: ServiceWorkOrder[] = [
     courierName: 'Burak Keskin',
     mechanicName: 'Usta İbrahim Kaya',
     faultDescription: 'Arka lastik değişimi ve balans ayarı.',
-    partsUsed: [{ partId: 'parca-3', name: 'Michelin City Grip 2 Lastik', qty: 1, cost: 2150 }],
+    partsUsed: [{ partId: 'parca-3', partCode: 'LST-MCH-03', name: 'Michelin City Grip 2 Lastik', qty: 1, unitCost: 2150, cost: 2150 }],
     laborCost: 350,
     totalCost: 2500,
     status: 'closed',
@@ -596,7 +608,7 @@ export const INITIAL_SYSTEM_BLOCKAGES: SystemBlockage[] = [
   },
 ];
 
-// TFKS Sınıf 6: Mühürlü Audit Log Akışı
+// TFKS Sınıf 6: Mühürlü Audit Log Akışı (SHA-256 Zincirleme Mühürlü)
 export const INITIAL_AUDIT_LOG_ENTRIES: AuditLogEntry[] = [
   {
     id: 'audit-001',
@@ -609,6 +621,7 @@ export const INITIAL_AUDIT_LOG_ENTRIES: AuditLogEntry[] = [
     previousValue: 'Bakiye: 5.450 ₺',
     newValue: 'Bakiye: 12.450 ₺ (+7.000 ₺ Kurye Yevmiye Tahsilatı)',
     justification: 'Vardiya sonu kurye nakit teslim fişleri toplu girişi.',
+    previousSealHash: 'a7c89f1042b5c68910dbe930129fca88921a938e1245bca90821de8349182049',
     securitySealHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   },
   {
@@ -622,6 +635,7 @@ export const INITIAL_AUDIT_LOG_ENTRIES: AuditLogEntry[] = [
     previousValue: 'Yok (Yeni Kayıt)',
     newValue: 'İş Emri No: SRV-2026-084 (Plaka: 34 MTO 44)',
     justification: 'Periyodik bakım ve sağ grenaj onarımı başlatıldı.',
+    previousSealHash: 'd89f2a0134bc58914389104fae1098234bc89103982341908234890123849102',
     securitySealHash: 'a7c89f1042b5c68910dbe930129fca88921a938e1245bca90821de8349182049',
   },
   {
@@ -635,6 +649,7 @@ export const INITIAL_AUDIT_LOG_ENTRIES: AuditLogEntry[] = [
     previousValue: 'Yok',
     newValue: 'Trafik Cezası Emniyetten İndirildi: 1.506 ₺ (İndirimli 1.129,5 ₺)',
     justification: 'Emniyet Genel Müdürlüğü elektronik tebligat sorgulaması.',
+    previousSealHash: 'f4901bca98234910823489102384910283490182349018234901823490182349',
     securitySealHash: 'd89f2a0134bc58914389104fae1098234bc89103982341908234890123849102',
   },
   {
@@ -648,7 +663,60 @@ export const INITIAL_AUDIT_LOG_ENTRIES: AuditLogEntry[] = [
     previousValue: 'Durum: Kontrol Bekliyor',
     newValue: 'Durum: Aktif Zimmet Onaylandı (Başlangıç Km: 14.250)',
     justification: '4 yönlü fotoğraf ve ekipman kontrolü eksiksiz tamamlandı.',
+    previousSealHash: 'GENESIS_0000000000000000',
     securitySealHash: 'f4901bca98234910823489102384910283490182349018234901823490182349',
+  },
+];
+
+// A20 & B5: Kanonik Çift Taraflı Muhasebe Defteri (Single Source of Truth General Ledger)
+export const INITIAL_LEDGER_ENTRIES: LedgerEntry[] = [
+  {
+    id: 'LEDGER-1001',
+    timestamp: '2026-10-03T14:20:00.000Z',
+    accountDebit: '108-SANAL-POS-BLOKE (Garanti BBVA 3D Secure)',
+    accountCredit: '340-MUSTERI-CUZDAN-AVANS (Bedirhan İbanoğlu)',
+    amount: 250.0,
+    currency: 'TRY',
+    transactionRefId: 'tx-1',
+    sourceOfTruth: 'canonical_general_ledger',
+    description: '3D Secure Kredi Kartından Müşteri Cüzdan Bakiye Yüklemesi',
+    signedHash: 'sha256_91bc0482a9102938471029384710293847102938471029384710293847102938',
+  },
+  {
+    id: 'LEDGER-1002',
+    timestamp: '2026-10-03T15:10:00.000Z',
+    accountDebit: '108-SANAL-POS-BLOKE (Müşteri Tahsilat: BLS-9481)',
+    accountCredit: '320-KURYE-HAKEDIS (Mert Aksoy - %100 Net Hakediş / %0 Komisyon)',
+    amount: 211.2,
+    currency: 'TRY',
+    transactionRefId: 'BLS-9481',
+    sourceOfTruth: 'canonical_general_ledger',
+    description: 'Beşiktaş → Levent Taksi Yolculuğu %100 Şoför Net Hakediş Tahakkuku (%0 Komisyon)',
+    signedHash: 'sha256_82cd1593b8213049582130495821304958213049582130495821304958213049',
+  },
+  {
+    id: 'LEDGER-1003',
+    timestamp: '2026-10-03T15:10:01.000Z',
+    accountDebit: '102-BANKA-KURUMSAL-HAVALE (Burger & Co Sabit Haftalık Üyelik)',
+    accountCredit: '600-PLATFORM-SABIT-UYELIK-GELIRI (Haftalık Esnaf Paket Ücreti)',
+    amount: 750.0,
+    currency: 'TRY',
+    transactionRefId: 'SUB-BIZ01-W40',
+    sourceOfTruth: 'canonical_general_ledger',
+    description: 'İşletme Haftalık Sabit Üyelik Tahsilatı (Sipariş Başı Komisyon: 0,00 ₺)',
+    signedHash: 'sha256_73de2604c7324150693241506932415069324150693241506932415069324150',
+  },
+  {
+    id: 'LEDGER-1004',
+    timestamp: '2026-10-03T16:00:00.000Z',
+    accountDebit: '100-MERKEZ-ANA-KASA (Merkez Finans Kasası)',
+    accountCredit: '100-SAHA-KADIKOY-KASA (Kadıköy Operasyon Kasası)',
+    amount: 7500.0,
+    currency: 'TRY',
+    transactionRefId: 'transfer-2',
+    sourceOfTruth: 'canonical_general_ledger',
+    description: 'Kadıköy Saha Kasasından Merkez Ana Kasaya Çift Onaylı Nakit Devri',
+    signedHash: 'sha256_64ef3715d6435261704352617043526170435261704352617043526170435261',
   },
 ];
 
@@ -769,6 +837,11 @@ export const INITIAL_BUSINESS_ACCOUNTS = [
     apiKey: 'mp_live_biz01_99482194812491',
     webhookUrl: 'https://api.burgerandco.com.tr/v1/motopilot-webhook',
     createdAt: '2026-01-15',
+    subscriptionStatus: 'FREE_INTRO' as const,
+    appliedIntroCampaignId: 'INTRO-2026-ESNAF-30GUN',
+    personalIntroEndDate: '2026-11-15T23:59:59.000Z',
+    graceEndsAt: null,
+    membershipEndsAt: '2026-11-15T23:59:59.000Z',
     subUsers: [
       {
         id: 'SUB-USR-01',
@@ -876,6 +949,11 @@ export const INITIAL_BUSINESS_ACCOUNTS = [
     apiKey: 'mp_live_biz02_38219482910481',
     webhookUrl: 'https://api.hizliecza.com/webhooks/motopilot',
     createdAt: '2026-02-10',
+    subscriptionStatus: 'ACTIVE_MEMBERSHIP' as const,
+    appliedIntroCampaignId: 'INTRO-2026-ESNAF-30GUN',
+    personalIntroEndDate: '2026-09-15T23:59:59.000Z',
+    graceEndsAt: null,
+    membershipEndsAt: '2026-11-30T23:59:59.000Z',
     subUsers: [
       {
         id: 'SUB-USR-05',
@@ -938,6 +1016,11 @@ export const INITIAL_BUSINESS_ACCOUNTS = [
     activeBranches: ['Nişantaşı Butik Mağaza', 'Bağdat Caddesi Mağaza'],
     apiKey: 'mp_live_biz03_58192049182312',
     createdAt: '2026-03-05',
+    subscriptionStatus: 'GRACE_PERIOD' as const,
+    appliedIntroCampaignId: 'INTRO-2026-ESNAF-30GUN',
+    personalIntroEndDate: '2026-10-01T23:59:59.000Z',
+    graceEndsAt: '2026-10-17T23:59:59.000Z',
+    membershipEndsAt: '2026-10-14T23:59:59.000Z',
     subUsers: [
       {
         id: 'SUB-USR-07',

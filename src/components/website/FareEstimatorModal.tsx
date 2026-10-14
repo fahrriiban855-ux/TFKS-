@@ -62,11 +62,11 @@ export const FareEstimatorModal: React.FC<FareEstimatorModalProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#0A84FF]" />
               <h3 className="text-base font-bold tracking-tight text-white">
-                Şeffaf Ücret ve Süre Simülatörü
+                M0 Şeffaf Ücret ve Süre Simülatörü (%0 Komisyon)
               </h3>
             </div>
             <p className="text-xs text-[#8E8E93] mt-0.5">
-              İstanbul trafiğinde motosiklet vs. standart sarı taksi karşılaştırması
+              1. Taksi (TAXI_RIDE) ve 2. Kurye / Teslimat (PERSONAL_DELIVERY) karşılaştırması — %100 şoför/kurye hakedişi
             </p>
           </div>
           <button
@@ -137,13 +137,13 @@ export const FareEstimatorModal: React.FC<FareEstimatorModalProps> = ({
 
         {/* Comparison Result Cards */}
         <div className="grid grid-cols-2 gap-3">
-          {/* MotoPilot Card */}
+          {/* Express Courier Card */}
           <div className="p-4 rounded-2xl bg-gradient-to-b from-[#0A84FF]/20 to-[#0071E3]/10 border border-[#0A84FF]/40 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#0A84FF]">
-                MotoPilot TAG
+                2. Kurye / Paket
               </span>
-              <span className="text-[10px] font-mono text-[#30D158] font-semibold">Trafikten Muaf</span>
+              <span className="text-[10px] font-mono text-[#30D158] font-semibold">%0 Komisyon</span>
             </div>
             <div className="text-2xl font-black text-white font-mono">{motoFare} ₺</div>
             <div className="flex items-center gap-1.5 text-xs text-white font-medium">
@@ -151,19 +151,19 @@ export const FareEstimatorModal: React.FC<FareEstimatorModalProps> = ({
               <span>Yaklaşık {motoMinutes} Dk</span>
             </div>
             <p className="text-[10px] text-[#8E8E93] leading-snug">
-              2. Kask & Bone temin edilir, mesafe bazlı net tarife.
+              PERSONAL_DELIVERY — Ücretin %100'ü doğrudan kuryeye aktarılır.
             </p>
           </div>
 
-          {/* Standard Taxi Card */}
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2">
+          {/* Taksi (TAXI_RIDE) Card */}
+          <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.12] space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">
-                Standart Taksi
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white">
+                1. Taksi (TAXI_RIDE)
               </span>
-              <span className="text-[10px] font-mono text-[#FF453A]">Sıkışık Trafik</span>
+              <span className="text-[10px] font-mono text-[#30D158] font-semibold">%0 Komisyon</span>
             </div>
-            <div className="text-2xl font-bold text-[#8E8E93] font-mono line-through">
+            <div className="text-2xl font-black text-white font-mono">
               {carTaxiFare} ₺
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[#8E8E93]">
@@ -171,7 +171,7 @@ export const FareEstimatorModal: React.FC<FareEstimatorModalProps> = ({
               <span>Yaklaşık {carMinutes} Dk</span>
             </div>
             <p className="text-[10px] text-[#8E8E93] leading-snug">
-              Köprü ve boğaz trafiğinde bekleme sayacı işler.
+              TAXI_RIDE — Yolcudan ve taksi şoföründen %0 komisyon kesilir.
             </p>
           </div>
         </div>
@@ -180,10 +180,10 @@ export const FareEstimatorModal: React.FC<FareEstimatorModalProps> = ({
         <div className="p-3 bg-[#30D158]/10 border border-[#30D158]/25 rounded-2xl flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-[#30D158] font-bold">
             <Zap className="w-4 h-4 shrink-0" />
-            <span>Kazanım: {timeSavedMinutes} Dakika Daha Hızlı</span>
+            <span>M0 Güvencesi: %0 Platform Komisyonu</span>
           </div>
           <span className="text-xs font-mono font-bold text-white">
-            {moneySaved} ₺ Tasarruf
+            %100 Emekçi Hakedişi
           </span>
         </div>
 

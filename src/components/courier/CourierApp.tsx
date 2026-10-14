@@ -52,6 +52,8 @@ import {
 import { PerformanceSummary } from './PerformanceSummary';
 import { LaunchStrategyMatrix } from '../common/LaunchStrategyMatrix';
 import { DeliveryPackageItem } from '../../types/platform';
+import { useLocalStorageState } from '../../hooks/useLocalStorageState';
+import { BatchRoutePlanRecord } from '../../services/motopilotEngines';
 
 interface CourierAppProps {
   isEmbedded?: boolean;
@@ -95,7 +97,13 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
     claimDriverQuestBonus,
     referralCodes,
     generateReferralCode,
+    recordAuditLog,
   } = usePlatform();
+
+  const [batchRoutes, setBatchRoutes] = useLocalStorageState<BatchRoutePlanRecord[]>(
+    'mp_batch_routes_v1',
+    []
+  );
 
   const [useDeviceFrame, setUseDeviceFrame] = useState(false);
   const [activeTab, setActiveTab] = useState<'cockpit' | 'zimmet_vardiya' | 'ceza_kasa' | 'earnings' | 'trips' | 'passengers' | 'documents' | 'settings'>('cockpit');
@@ -430,8 +438,8 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
 
                 <div className="p-3.5 bg-[#2C2C2E]/60 rounded-2xl border border-white/[0.06] flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-[#8E8E93] font-semibold block uppercase">
-                      Sürücü Brüt Hakedişi
+                    <span className="text-[10px] text-[#30D158] font-semibold block uppercase">
+                      Sürücü / Kurye Net Hakedişi (%100 — %0 Komisyon)
                     </span>
                     <span className="text-2xl font-bold font-mono text-[#30D158]">{currentRide.courierEarnings} ₺</span>
                   </div>
@@ -447,12 +455,12 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
                 <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                   <span className="px-2.5 py-1 rounded-full font-semibold bg-[#0071E3]/20 text-[#0A84FF] border border-[#0071E3]/30">
                     {currentRide.serviceType === 'motosiklet'
-                      ? '🛵 Beni Götür (Yolcu)'
+                      ? '🚕 1. Taksi (TAXI_RIDE)'
                       : currentRide.serviceType === 'kurye'
-                      ? '📦 Paketimi Götür'
+                      ? '📦 2. Bireysel Kurye (PERSONAL_DELIVERY)'
                       : currentRide.serviceType === 'al_getir'
                       ? '🛍️ Alıp Bana Getir'
-                      : '🍽️ İşletme Siparişi'}
+                      : '🏪 İşletme Teslimatı (MERCHANT_DELIVERY)'}
                   </span>
 
                   {currentRide.timing === 'scheduled' && (
@@ -793,19 +801,138 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
                 )}
               </div>
             ) : (
-              <div className="bg-[#1C1C1E]/95 backdrop-blur-2xl border border-white/[0.1] rounded-[28px] p-4 text-center space-y-2.5 shadow-2xl">
+              <div className="bg-[#1C1C1E]/95 backdrop-blur-2xl border border-white/[0.1] rounded-[28px] p-4 space-y-3 shadow-2xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-white font-mono font-bold text-xs">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#30D158] animate-ping" />
                     <span className="text-[#30D158]">ÇEVRİM İÇİ — BÖLGE TARANIYOR</span>
                   </div>
                   <span className="text-[11px] font-semibold text-[#0A84FF]">
-                    {activeCourier.equipmentMode === 'passenger_and_courier' ? 'Yolcu & Paket' : 'Paket Dağıtımı'}
+                    {activeCourier.equipmentMode === 'passenger_and_courier' ? 'Hibrit: Taksi & Kurye (%0 Komisyon)' : 'Kurye & Paket (%0 Komisyon)'}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#8E8E93]">Beşiktaş / Kadıköy / Şişli koridorunda en yakın çağrı anında ekranınıza düşecektir.</p>
-                
-                <div className="pt-1">
+
+                {/* GAP-03: Sürücü ve Kurye Hibrit Kapasite Dengeleme Algoritması (HybridCapacityEngine) */}
+                <div className="p-3 rounded-2xl bg-black/50 border border-white/[0.08] flex items-center justify-between gap-2 text-left">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-[#30D158]" />
+                      <span className="text-[11px] font-bold text-white">
+                        Hibrit Kapasite Modu (Yolcu ⇄ Paket)
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-[#30D158]/20 text-[#30D158] font-mono text-[9px] font-bold">
+                        +%38 Doluluk
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[#8E8E93] mt-0.5">
+                      Beşiktaş/Levent paket yoğunluğu %91 · Atıl süreyi sıfırlar
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMode =
+                        activeCourier.equipmentMode === 'passenger_and_courier'
+                          ? 'courier_only'
+                          : 'passenger_and_courier';
+                      setCourierEquipmentMode(activeCourier.id, nextMode);
+                      recordAuditLog({
+                        actionType: 'UPDATE',
+                        screenName: 'CourierApp/HybridCapacityEngine',
+                        recordId: activeCourier.id,
+                        previousValue: activeCourier.equipmentMode,
+                        newValue: nextMode,
+                        justification:
+                          'Hibrit Kapasite Dengeleme Algoritması ile yolcu ve paket görevi geçişi yapıldı.',
+                      });
+                      showNotification({
+                        title:
+                          nextMode === 'passenger_and_courier'
+                            ? 'Hibrit Kapasite Modu Aktif (+%38 Doluluk)'
+                            : 'Yalnızca Kurye/Paket Modu Aktif',
+                        message:
+                          nextMode === 'passenger_and_courier'
+                            ? 'Hem Taksi/Yolcu hem de İşletme Paket çağrıları otonom dengeleniyor.'
+                            : 'Yalnızca bireysel ve kurumsal paket teslimatı çağrıları alınacak.',
+                        type: 'success',
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-[11px] shrink-0 cursor-pointer transition-all ${
+                      activeCourier.equipmentMode === 'passenger_and_courier'
+                        ? 'bg-[#30D158] text-black'
+                        : 'bg-white/10 text-white'
+                    }`}
+                  >
+                    {activeCourier.equipmentMode === 'passenger_and_courier'
+                      ? 'Hibrit Açık'
+                      : 'Sadece Paket'}
+                  </button>
+                </div>
+
+                {/* GAP-04: Çok Duraklı (Multi-Drop) Paket Rota Navigasyon Kartı */}
+                {batchRoutes.filter((b) => b.status !== 'COMPLETED').length > 0 && (() => {
+                  const activeBatch = batchRoutes.find((b) => b.status !== 'COMPLETED')!;
+                  return (
+                    <div className="p-3 rounded-2xl bg-[#0A84FF]/10 border border-[#0A84FF]/30 text-left space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-[#0A84FF]" />
+                          Çoklu Paket Rotası ({activeBatch.batchId})
+                        </span>
+                        <span className="font-mono text-[10px] text-[#30D158] font-bold">
+                          Net: {activeBatch.courierNetPayoutTl} ₺ (-%{activeBatch.kmSavedPercent} KM)
+                        </span>
+                      </div>
+                      <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                        {activeBatch.stops.map((st) => (
+                          <div
+                            key={st.packageId}
+                            className="flex items-center justify-between text-[10px] bg-black/40 px-2.5 py-1.5 rounded-lg border border-white/[0.06]"
+                          >
+                            <span className="text-zinc-200 truncate">
+                              #{st.stopOrder} {st.recipientName} (PIN: <strong>{st.pinCode}</strong>)
+                            </span>
+                            {st.status === 'DELIVERED' ? (
+                              <span className="text-[#30D158] font-mono font-bold">Teslim ✓</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBatchRoutes((prev) =>
+                                    prev.map((b) => {
+                                      if (b.batchId !== activeBatch.batchId) return b;
+                                      const nextStops = b.stops.map((s) =>
+                                        s.packageId === st.packageId
+                                          ? { ...s, status: 'DELIVERED' as const, podVerified: true }
+                                          : s
+                                      );
+                                      const allDone = nextStops.every((s) => s.status === 'DELIVERED');
+                                      return {
+                                        ...b,
+                                        stops: nextStops,
+                                        status: allDone ? 'COMPLETED' : 'DISPATCHED',
+                                      };
+                                    })
+                                  );
+                                  showNotification({
+                                    title: `Durak #${st.stopOrder} Teslim Edildi (PIN: ${st.pinCode})`,
+                                    message: `${st.recipientName} paketi PoD onayı ile tamamlandı.`,
+                                    type: 'success',
+                                  });
+                                }}
+                                className="px-2 py-0.5 rounded bg-[#30D158] text-black font-bold cursor-pointer"
+                              >
+                                PIN Onayla
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="pt-0.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1903,12 +2030,12 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
                         {activeCourier.equipmentMode === 'passenger_and_courier' ? (
                           <>
                             <Bike className="w-3.5 h-3.5 text-[#30D158]" />
-                            <span>Yolcu + Paket (Karma)</span>
+                            <span>Taksi & Paket (%0 Komisyon)</span>
                           </>
                         ) : (
                           <>
                             <Package className="w-3.5 h-3.5 text-[#0A84FF]" />
-                            <span>Paket Dağıtımı</span>
+                            <span>Kurye & Paket (%0 Komisyon)</span>
                           </>
                         )}
                       </span>
@@ -2359,11 +2486,11 @@ export const CourierApp: React.FC<CourierAppProps> = ({ isEmbedded = false }) =>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs">Yolcu + Paket (Karma)</span>
-                    <span className="text-[10px] text-[#30D158] font-medium">Martı TAG & Kurye</span>
+                    <span className="font-bold text-white text-xs">Taksi + Kurye (M0 %0 Komisyon)</span>
+                    <span className="text-[10px] text-[#30D158] font-medium">%100 Net Hakediş</span>
                   </div>
                   <p className="text-[11px] text-[#8E8E93] mt-0.5 leading-snug">
-                    Hem yolcu hem paket çağrılarını alarak maksimum kazanç sağlayın.
+                    Taksi ve paket teslimat çağrılarını %0 komisyonla kabul edin. (Not: MOTO_PASSENGER_RIDE UKOME onayı bekleyen gelecek hizmettir).
                   </p>
                 </div>
               </button>

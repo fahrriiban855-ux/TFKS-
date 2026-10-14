@@ -1,0 +1,243 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'fahrriiban855@gmail.com'
+      );
+    }
+
+    // Validation Blueprint 1: UserPublicProfile
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'activeRole', 'hybridModeEnabled', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'activeRole', 'hybridModeEnabled', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() <= 128 && data.uid == userId && data.uid == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.activeRole is string && data.activeRole.size() <= 24 &&
+        data.activeRole in ['CUSTOMER', 'DRIVER', 'COURIER', 'BUSINESS', 'ADMIN'] &&
+        data.hybridModeEnabled is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint 2: UserPrivateInfo (PII Isolated)
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'createdAt']) &&
+        data.uid is string && data.uid.size() <= 128 && data.uid == userId && data.uid == request.auth.uid &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint 3: PlatformOrder (Enforces 0% Commission Invariant)
+    function isValidPlatformOrder(data, orderId) {
+      return data.keys().hasAll([
+          'orderId', 'ownerId', 'serviceType', 'status',
+          'pickupName', 'dropoffName', 'totalFare',
+          'platformCommission', 'courierEarnings', 'snapshotHash',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderId', 'ownerId', 'serviceType', 'status',
+          'pickupName', 'dropoffName', 'totalFare',
+          'platformCommission', 'courierEarnings', 'snapshotHash',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.orderId is string && data.orderId.size() <= 128 && data.orderId == orderId &&
+        data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid &&
+        data.serviceType is string && data.serviceType.size() <= 32 &&
+        data.serviceType in ['TAXI_RIDE', 'INDIVIDUAL_DELIVERY', 'BUSINESS_DELIVERY'] &&
+        data.status is string && data.status.size() <= 24 &&
+        data.status in ['searching', 'offered', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'] &&
+        data.pickupName is string && data.pickupName.size() >= 1 && data.pickupName.size() <= 200 &&
+        data.dropoffName is string && data.dropoffName.size() >= 1 && data.dropoffName.size() <= 200 &&
+        data.totalFare is number && data.totalFare >= 0 &&
+        data.platformCommission is number && data.platformCommission == 0 &&
+        data.courierEarnings is number && data.courierEarnings == data.totalFare &&
+        data.snapshotHash is string && data.snapshotHash.size() >= 6 && data.snapshotHash.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint 4: BatchRoutePlan
+    function isValidBatchRoutePlan(data, batchId) {
+      return data.keys().hasAll([
+          'batchId', 'ownerId', 'businessId', 'corridorName',
+          'packageCount', 'kmSavedPercent', 'status', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'batchId', 'ownerId', 'businessId', 'corridorName',
+          'packageCount', 'kmSavedPercent', 'status', 'createdAt'
+        ]) &&
+        data.batchId is string && data.batchId.size() <= 128 && data.batchId == batchId &&
+        data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid &&
+        data.businessId is string && data.businessId.size() >= 1 && data.businessId.size() <= 64 &&
+        data.corridorName is string && data.corridorName.size() >= 1 && data.corridorName.size() <= 120 &&
+        data.packageCount is number && data.packageCount >= 2 && data.packageCount <= 10 &&
+        data.kmSavedPercent is number && data.kmSavedPercent >= 0 && data.kmSavedPercent <= 90 &&
+        data.status is string && data.status.size() <= 24 &&
+        data.status in ['READY', 'DISPATCHED', 'COMPLETED'] &&
+        data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint 5: BusinessWirePaymentNotice
+    function isValidWireNotice(data, noticeId) {
+      return data.keys().hasAll([
+          'noticeId', 'ownerId', 'businessId', 'wireReferenceCode',
+          'amountTl', 'approvalStatus', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'noticeId', 'ownerId', 'businessId', 'wireReferenceCode',
+          'amountTl', 'approvalStatus', 'createdAt'
+        ]) &&
+        data.noticeId is string && data.noticeId.size() <= 128 && data.noticeId == noticeId &&
+        data.ownerId is string && data.ownerId.size() <= 128 && data.ownerId == request.auth.uid &&
+        data.businessId is string && data.businessId.size() >= 1 && data.businessId.size() <= 64 &&
+        data.wireReferenceCode is string && data.wireReferenceCode.size() >= 4 && data.wireReferenceCode.size() <= 64 &&
+        data.amountTl is number && data.amountTl > 0 && data.amountTl <= 500000 &&
+        data.approvalStatus is string && data.approvalStatus.size() <= 24 &&
+        data.approvalStatus in ['PENDING', 'APPROVED', 'REJECTED'] &&
+        data.createdAt is timestamp;
+    }
+
+    // 1. /users_public/{userId}
+    match /users_public/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isOwner(userId) && isValidId(userId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isOwner(userId) && isValidId(userId) &&
+        isValidUserPublicProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'activeRole', 'hybridModeEnabled', 'updatedAt']) ||
+          isAdmin()
+        );
+      allow delete: if false;
+    }
+
+    // 2. /users_private/{userId} (PII Strictly Isolated)
+    match /users_private/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidId(userId) &&
+        isValidUserPrivateInfo(incoming(), userId) &&
+        incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && isValidId(userId) &&
+        isValidUserPrivateInfo(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['phone']);
+      allow delete: if false;
+    }
+
+    // 3. /orders/{orderId}
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(orderId) &&
+        isValidPlatformOrder(incoming(), orderId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(orderId) &&
+        isValidPlatformOrder(incoming(), orderId) &&
+        incoming().orderId == existing().orderId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            existing().ownerId == request.auth.uid &&
+            !(existing().status in ['completed', 'cancelled']) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          ) ||
+          isAdmin()
+        );
+      allow delete: if false;
+    }
+
+    // 4. /batch_routes/{batchId}
+    match /batch_routes/{batchId} {
+      allow get: if isValidId(batchId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(batchId) &&
+        isValidBatchRoutePlan(incoming(), batchId) &&
+        incoming().createdAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(batchId) &&
+        isValidBatchRoutePlan(incoming(), batchId) &&
+        incoming().batchId == existing().batchId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (
+            existing().ownerId == request.auth.uid &&
+            existing().status != 'COMPLETED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+          ) ||
+          isAdmin()
+        );
+      allow delete: if false;
+    }
+
+    // 5. /wire_notices/{noticeId}
+    match /wire_notices/{noticeId} {
+      allow get: if isValidId(noticeId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(noticeId) &&
+        isValidWireNotice(incoming(), noticeId) &&
+        incoming().approvalStatus == 'PENDING' &&
+        incoming().createdAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(noticeId) &&
+        isValidWireNotice(incoming(), noticeId) &&
+        incoming().noticeId == existing().noticeId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['approvalStatus']);
+      allow delete: if false;
+    }
+
+    // 6. /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+  }
+}
