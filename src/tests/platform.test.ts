@@ -192,6 +192,156 @@ runTest('42 Hi-Fi Wireframe Ekranı (15 Müşteri + 15 Kurye + 6 İşletme + 6 A
   }
 });
 
+import {
+  verifyTripPinGuard,
+  verifyTripCompletionGuard,
+  verifyDailyClosingGuard,
+  sanitizeUserMessageText,
+} from '../context/PlatformContext';
+import type { RideOrder, TransactionReconciliationRecord } from '../types/platform';
+
+// 9. Lansman Engelleyici 5 Kritik Güvenlik & Durum Makinesi Testi (PIN Bypass, Kanonik Kimlik, Hata Maskeleme, Mükerrer Tahsilat)
+runTest('Lansman Blokajları: Boş/Yanlış PIN reddi, Doğrulama öncesi Tamamlama reddi, Kanonik Kurye, Hata Sanitize ve İdempotent Tahsilat', () => {
+  const baseOrder: RideOrder = {
+    id: 'MP-9901',
+    serviceType: 'motosiklet',
+    customerName: 'Bedirhan İbanoğlu',
+    customerPhone: '+905056779379',
+    pickup: { id: 'p1', name: 'Beşiktaş Meydan', address: 'Beşiktaş', lat: 41.0422, lng: 29.0067 },
+    dropoff: { id: 'd1', name: 'Levent Metro', address: 'Levent', lat: 41.0766, lng: 29.0143 },
+    distanceKm: 4.2,
+    durationMin: 12,
+    baseFare: 50,
+    kmFare: 120,
+    surgeMultiplier: 1,
+    totalFare: 170,
+    platformCommission: 0,
+    courierEarnings: 170,
+    serviceFeePercent: 0,
+    serviceFeeFixed: 0,
+    status: 'arrived',
+    boardingCode: '3141',
+    courierId: 'kurye-1',
+    courierName: 'Mert Aksoy',
+    assignedCourierId: 'kurye-1',
+    assignedVehicleId: '34 BLY 717',
+    assignmentVersion: 2,
+    verificationStatus: 'pending',
+    pinUsed: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 1) Empty PIN & Wrong PIN must fail
+  assert.equal(verifyTripPinGuard(baseOrder, '', 'kurye-1').allowed, false, 'Boş PIN reddedilmeli');
+  assert.equal(verifyTripPinGuard(baseOrder, '0000', 'kurye-1').allowed, false, 'Yanlış PIN reddedilmeli');
+  assert.equal(
+    verifyTripPinGuard(baseOrder, 'PICKUP_CONFIRMED', 'kurye-1').allowed,
+    false,
+    'Yolcu seferinde PICKUP_CONFIRMED ile PIN bypass edilememeli'
+  );
+
+  // 2) Completion before PIN verification must fail
+  assert.equal(
+    verifyTripCompletionGuard(baseOrder, 'kurye-1', []).allowed,
+    false,
+    'PIN doğrulanmadan ve arrived durumundayken tamamlama reddedilmeli'
+  );
+
+  // 3) Unassigned courier action must fail
+  assert.equal(
+    verifyTripPinGuard(baseOrder, '3141', 'kurye-2').allowed,
+    false,
+    'Atanmamış kurye PIN doğrulayamaz'
+  );
+
+  // 4) Correct PIN allows ARRIVED -> IN_PROGRESS transition
+  assert.equal(verifyTripPinGuard(baseOrder, '3141', 'kurye-1').allowed, true, 'Doğru PIN kabul edilmeli');
+
+  const verifiedInProgressOrder: RideOrder = {
+    ...baseOrder,
+    status: 'in_progress',
+    verificationStatus: 'verified',
+    verifiedAt: new Date().toISOString(),
+    pinUsed: true,
+  };
+
+  // Re-using same PIN must fail
+  assert.equal(
+    verifyTripPinGuard({ ...verifiedInProgressOrder, status: 'arrived' }, '3141', 'kurye-1').allowed,
+    false,
+    'Tekrar kullanılan PIN reddedilmeli'
+  );
+
+  // Completion after verification succeeds once
+  assert.equal(
+    verifyTripCompletionGuard(verifiedInProgressOrder, 'kurye-1', []).allowed,
+    true,
+    'Doğrulanmış in_progress sefer tamamlanabilmeli'
+  );
+
+  // 5) Duplicate financial posting must fail
+  const existingRec: TransactionReconciliationRecord = {
+    id: 'REC-MP-9901',
+    rideId: 'MP-9901',
+    timestamp: new Date().toISOString(),
+    paymentMethod: 'card',
+    amountCollected: 170,
+    collectionChannel: 'simulation_card_pos',
+    courierEarnings: 170,
+    platformCommission: 0,
+    cancellationFeeApplied: 0,
+    appliedRule: { ruleCode: 'KURAL-F01-ONAYLI', description: 'Test', isApprovedByUser: true },
+    reconciliationStatus: 'balanced',
+    idempotencyKey: 'idem_MP-9901_settlement',
+    isIdempotentVerified: true,
+    notes: 'Test',
+  };
+  assert.equal(
+    verifyTripCompletionGuard(verifiedInProgressOrder, 'kurye-1', [existingRec]).allowed,
+    false,
+    'Mükerrer tahsilat/mutabakat engellenmeli'
+  );
+
+  // 6) Sanitized Firebase/Auth error must never leak email, uid, path, or providerInfo
+  const rawLeak =
+    'Firestore Error: {"error":"Missing or insufficient permissions.","authInfo":{"userId":"GNwXpvQNFwapZHM02H5LDMzlWaM2","email":"fahrriiban855@gmail.com","providerInfo":[{"providerId":"google.com"}]},"path":"users_public/GNwXpvQNFwapZHM02H5LDMzlWaM2"}';
+  const sanitized = sanitizeUserMessageText(rawLeak);
+  assert.equal(sanitized.includes('fahrriiban855@gmail.com'), false, 'E-posta sızmamalı');
+  assert.equal(sanitized.includes('GNwXpvQNFwapZHM02H5LDMzlWaM2'), false, 'UID sızmamalı');
+  assert.equal(sanitized.includes('users_public/'), false, 'Koleksiyon yolu sızmamalı');
+
+  // 7) Paket/İşletme teslimatında PICKUP_CONFIRMED ile arrived -> in_progress geçişi ve TFKS Gün Kapanışı risk kilidi
+  const packageOrder: RideOrder = {
+    ...baseOrder,
+    id: 'MP-PKG-101',
+    serviceType: 'kurye',
+    verificationStatus: 'not_required',
+  };
+  assert.equal(
+    verifyTripPinGuard(packageOrder, 'PICKUP_CONFIRMED', 'kurye-1').allowed,
+    true,
+    'Paket teslimatında PICKUP_CONFIRMED ile yola çıkışa izin verilmeli'
+  );
+  assert.equal(
+    verifyDailyClosingGuard({
+      hasOpenService: true,
+      hasUnapprovedTransfer: false,
+      uncollectedCashAmount: 1200,
+    }).allowed,
+    false,
+    'Açık servis emri veya tahsil edilmemiş nakit varken override olmadan gün kapatılamamalı'
+  );
+  assert.equal(
+    verifyDailyClosingGuard({
+      hasOpenService: false,
+      hasUnapprovedTransfer: false,
+      uncollectedCashAmount: 0,
+    }).allowed,
+    true,
+    'Tüm riskler temizlendiğinde gün kapanışı mühürlenebilmeli'
+  );
+});
+
 const passedCount = groupResults.filter((r) => r.passed).length;
 const failedCount = groupResults.length - passedCount;
 

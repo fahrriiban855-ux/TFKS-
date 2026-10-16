@@ -233,100 +233,90 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6 text-[#F5F5F7]">
-      {/* Top Executive Breadcrumb & Engine Health - Apple macOS Control Center Style */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4.5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] shadow-2xl">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#0071E3] flex items-center justify-center text-white font-bold shadow-md shadow-[#0071E3]/20">
-            <LayoutDashboard className="w-5 h-5 stroke-[2.2]" />
+      {/* Üst Özet Başlık */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0071E3] flex items-center justify-center text-white font-bold">
+            <LayoutDashboard className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2 text-xs text-[#8E8E93]">
-              <span>MotoPilot Komuta Merkezi</span>
-              <span className="text-[#636366]">/</span>
-              <span className="text-white font-semibold">İstanbul Filosu</span>
-              <span className="text-[#636366]">/</span>
-              <span className="text-[#8E8E93] font-mono">3 Arayüz Ortak Altyapı</span>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-white mt-0.5">
-              MotoPilot Operasyon & Komuta Merkezi
+            <h1 className="text-lg font-bold tracking-tight text-white">
+              Yönetim Paneli
             </h1>
+            <p className="text-xs text-[#8E8E93]">
+              Filo, kasa, vardiya ve operasyon yönetimi
+            </p>
           </div>
         </div>
 
-        {/* Honest System Architecture Metadata (Zero-Pill Rule) */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-[#94A3B8]">
-          <span className="text-[#30D158] font-semibold">M0 Sıfır Komisyon İlkesi (%0)</span>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-[#94A3B8]">
+          <span className="text-[#30D158] font-semibold">%0 Komisyon</span>
           <span aria-hidden="true">·</span>
-          <span>18 Operasyon Sınıfı</span>
-          <span aria-hidden="true">·</span>
-          <span>Yerel Durum + Fail-Closed API</span>
+          <span>{couriers.filter((c) => c.isOnline).length} Aktif Kurye</span>
         </div>
       </div>
 
-      {/* 4 Executive KPI Cards */}
+      {/* 4 Özet Gösterge Kartı */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#94A3B8] font-medium block">Toplam İşlem Hacmi (GMV)</span>
-          <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-white tracking-tight">
+        <div className="p-4 bg-[#1C1C1E]/80 border border-white/[0.08] rounded-2xl space-y-1.5">
+          <span className="text-xs text-[#94A3B8] font-medium block">Toplam İşlem Hacmi</span>
+          <div className="text-2xl font-bold font-mono tabular-nums text-white">
             {platformStats.totalRevenue.toLocaleString('tr-TR')} ₺
           </div>
-          <div className="text-[11px] text-[#30D158] font-semibold flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>Sürücü ve kuryelere %100 net hakediş</span>
+          <div className="text-[11px] text-[#30D158] font-semibold">
+            %100 sürücü/kurye hakedişi
           </div>
         </div>
 
-        <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#94A3B8] font-medium block">M0 Sipariş Komisyonu (%{tariffs.platformCommissionRate})</span>
-          <div className="text-2xl sm:text-3xl font-bold font-mono tabular-nums text-[#0A84FF] tracking-tight">
+        <div className="p-4 bg-[#1C1C1E]/80 border border-white/[0.08] rounded-2xl space-y-1.5">
+          <span className="text-xs text-[#94A3B8] font-medium block">Kesilen Komisyon (%{tariffs.platformCommissionRate})</span>
+          <div className="text-2xl font-bold font-mono tabular-nums text-[#0A84FF]">
             {platformStats.platformCommissionEarned.toLocaleString('tr-TR')} ₺
           </div>
           <span className="text-[11px] text-[#94A3B8] block">
-            Yolculuk ve paket başına %0 kesinti garantisi
+            Sıfır komisyon modeli
           </span>
         </div>
 
-        <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#8E8E93] font-medium block">Aktif Kurye / Zimmetli Araç</span>
-          <div className="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight">
-            {platformStats.activeDriversOnline} <span className="text-base text-[#8E8E93] font-normal">/ {vehicleAssignments.filter(v => v.shiftStatus === 'active').length} Zimmet</span>
+        <div className="p-4 bg-[#1C1C1E]/80 border border-white/[0.08] rounded-2xl space-y-1.5">
+          <span className="text-xs text-[#8E8E93] font-medium block">Aktif Kurye / Zimmet</span>
+          <div className="text-2xl font-bold font-mono text-white">
+            {platformStats.activeDriversOnline} <span className="text-sm text-[#8E8E93] font-normal">/ {vehicleAssignments.filter(v => v.shiftStatus === 'active').length} Araç</span>
           </div>
           <span className="text-[11px] text-[#30D158] block font-medium">
-            ● Saniyelik GPS & Telemetri akışı
+            Canlı konum takibi aktif
           </span>
         </div>
 
-        <div className="p-5 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] space-y-2 shadow-xl hover:border-white/[0.14] transition-all">
-          <span className="text-xs text-[#8E8E93] font-medium block">Gün Kapanışı & Güvenlik</span>
-          <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight flex items-center gap-2 text-white">
+        <div className="p-4 bg-[#1C1C1E]/80 border border-white/[0.08] rounded-2xl space-y-1.5">
+          <span className="text-xs text-[#8E8E93] font-medium block">Gün Kapanışı</span>
+          <div className="text-xl font-bold font-mono flex items-center gap-2 text-white">
             {dailyClosingAudit.status.includes('sealed') ? (
               <span className="text-[#30D158] flex items-center gap-1.5">
-                <Lock className="w-4 h-4 text-[#30D158]" /> MÜHÜRLÜ
+                <Lock className="w-4 h-4 text-[#30D158]" /> KAPALI
               </span>
             ) : (
               <span className="text-[#FF9F0A] flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-[#FF9F0A]" /> AÇIK GÜN
+                <Clock className="w-4 h-4 text-[#FF9F0A]" /> AÇIK
               </span>
             )}
           </div>
           <span className="text-[11px] text-[#8E8E93] block">
-            {systemBlockages.filter(b => !b.isUnlocked).length} Aktif Sistem Freni / Blokaj
+            {systemBlockages.filter(b => !b.isUnlocked).length} Aktif Kısıtlama
           </span>
         </div>
       </div>
 
-      {/* Main Console Body: Left Nav Sidebar + Right Active Work Area */}
+      {/* Ana İçerik: Sol Menü + Sağ Çalışma Alanı */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Navigation Sidebar - Apple macOS Sequoia Style */}
-        <div className="lg:col-span-3 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-[28px] p-3 space-y-2 shadow-2xl">
-          {/* Quick Search */}
+        <div className="lg:col-span-3 bg-[#1C1C1E]/80 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-3 space-y-2 shadow-xl">
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[#8E8E93]" />
             <input
               type="text"
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
-              placeholder="Modüllerde hızlı ara..."
+              placeholder="Menüde ara..."
               className="w-full bg-[#2C2C2E]/60 border border-white/[0.08] focus:border-[#0071E3] rounded-xl pl-8 pr-7 py-2 text-xs text-white placeholder-[#8E8E93] focus:outline-none transition-all"
             />
             {navSearch && (
@@ -339,13 +329,12 @@ export const AdminDashboard: React.FC = () => {
             )}
           </div>
 
-          {/* Segmented Category Filter Pills */}
           <div className="grid grid-cols-4 gap-1 p-1 bg-white/[0.04] rounded-xl border border-white/[0.06] text-[10px] font-medium">
             {[
               { id: 'all', label: 'Tümü' },
-              { id: 'ops', label: 'Operasyon' },
+              { id: 'ops', label: 'Saha' },
               { id: 'finance', label: 'Finans' },
-              { id: 'system', label: 'Sistem' },
+              { id: 'system', label: 'Ayarlar' },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -361,44 +350,43 @@ export const AdminDashboard: React.FC = () => {
             ))}
           </div>
 
-          {/* Filtered Navigation List */}
           <div className="space-y-1 pt-1 max-h-[640px] overflow-y-auto pr-0.5">
             {[
               {
                 id: 'map',
-                title: 'Canlı Filo & Harita',
+                title: 'Canlı Harita & Sevk',
                 category: 'ops',
                 icon: <Layers className="w-4 h-4 text-[#0A84FF]" />,
-                badge: currentRide ? 'Aktif Çağrı' : undefined,
-                badgeColor: 'bg-[#30D158]/20 text-[#30D158] border-[#30D158]/40 animate-pulse',
+                badge: currentRide ? 'Aktif' : undefined,
+                badgeColor: 'bg-[#30D158]/20 text-[#30D158] border-[#30D158]/40',
               },
               {
                 id: 'zimmet',
                 title: 'Zimmet & Vardiya',
                 category: 'ops',
                 icon: <ClipboardList className="w-4 h-4 text-[#30D158]" />,
-                badge: `${vehicleAssignments.length} Zimmet`,
+                badge: `${vehicleAssignments.length}`,
                 badgeColor: 'bg-white/[0.08] text-[#8E8E93] border-white/[0.1]',
               },
               {
                 id: 'fleet',
-                title: 'Kurye & Belge Onay',
+                title: 'Kuryeler & Belgeler',
                 category: 'ops',
                 icon: <Users className="w-4 h-4 text-[#0A84FF]" />,
-                badge: `${couriers.length} Kurye`,
+                badge: `${couriers.length}`,
                 badgeColor: 'bg-white/[0.08] text-[#8E8E93] border-white/[0.1]',
               },
               {
                 id: 'servis',
-                title: 'Depo & Servis Masası',
+                title: 'Servis & Bakım',
                 category: 'ops',
                 icon: <Wrench className="w-4 h-4 text-[#FF9F0A]" />,
-                badge: `${serviceWorkOrders.filter((w) => w.status === 'in_progress').length} İş Emri`,
+                badge: `${serviceWorkOrders.filter((w) => w.status === 'in_progress').length}`,
                 badgeColor: 'bg-white/[0.08] text-[#8E8E93] border-white/[0.1]',
               },
               {
                 id: 'support',
-                title: 'Şikayet & Destek',
+                title: 'Destek & Şikayet',
                 category: 'ops',
                 icon: <ShieldAlert className="w-4 h-4 text-[#FF453A]" />,
                 badge: complaints.filter((c) => c.status === 'open').length > 0 ? 'Açık' : undefined,
@@ -406,23 +394,23 @@ export const AdminDashboard: React.FC = () => {
               },
               {
                 id: 'kasa',
-                title: 'Çoklu Kasa & Mutabakat',
+                title: 'Kasa & Mutabakat',
                 category: 'finance',
                 icon: <Coins className="w-4 h-4 text-[#FFD60A]" />,
-                badge: cashTransfers.some((t) => t.status === 'pending_approval') ? 'Onay Bekliyor' : undefined,
-                badgeColor: 'bg-[#FF9F0A]/20 text-[#FF9F0A] border-[#FF9F0A]/40 animate-pulse',
+                badge: cashTransfers.some((t) => t.status === 'pending_approval') ? 'Onay' : undefined,
+                badgeColor: 'bg-[#FF9F0A]/20 text-[#FF9F0A] border-[#FF9F0A]/40',
               },
               {
                 id: 'ceza',
-                title: 'Ceza & Hasar Masası',
+                title: 'Ceza & Hasar',
                 category: 'finance',
                 icon: <AlertCircle className="w-4 h-4 text-[#FF453A]" />,
-                badge: `${courierPenalties.length} Ceza`,
+                badge: `${courierPenalties.length}`,
                 badgeColor: 'bg-[#FF453A]/15 text-[#FF453A] border-[#FF453A]/30',
               },
               {
                 id: 'finance',
-                title: 'Hakediş & FAST Dağıtım',
+                title: 'Hakediş Ödemeleri',
                 category: 'finance',
                 icon: <DollarSign className="w-4 h-4 text-[#30D158]" />,
                 badge: `${totalPendingPayout} ₺`,
@@ -430,79 +418,55 @@ export const AdminDashboard: React.FC = () => {
               },
               {
                 id: 'closing',
-                title: 'Mühürlü Gün Kapanışı',
+                title: 'Gün Kapanışı',
                 category: 'finance',
                 icon: <FileCheck className="w-4 h-4 text-[#30D158]" />,
-                badge: dailyClosingAudit.status.includes('sealed') ? 'Mühürlü' : '14 Madde',
-                badgeColor: 'bg-white/[0.08] text-[#8E8E93] border-white/[0.1]',
+                badge: undefined,
+                badgeColor: '',
               },
               {
                 id: 'reconciliation',
-                title: 'Uzlaşma & Politika',
+                title: 'Uzlaşma Kayıtları',
                 category: 'finance',
                 icon: <ShieldCheck className="w-4 h-4 text-[#0A84FF]" />,
-                badge: `${reconciliationRecords.length} Uzlaşma`,
+                badge: `${reconciliationRecords.length}`,
                 badgeColor: 'bg-[#0A84FF]/15 text-[#0A84FF] border-[#0A84FF]/30',
               },
               {
                 id: 'loyalty',
-                title: 'Sadakat & Kampanya',
+                title: 'Kampanya & Kupon',
                 category: 'finance',
                 icon: <Award className="w-4 h-4 text-[#FFD60A]" />,
-                badge: 'Ödül & Kupon',
-                badgeColor: 'bg-[#FFD60A]/15 text-[#FFD60A] border-[#FFD60A]/30 font-semibold',
-              },
-              {
-                id: 'lansman',
-                title: 'Lansman & Faz Kilidi',
-                category: 'system',
-                icon: <Rocket className="w-4 h-4 text-[#FF9F0A]" />,
-                badge: '4/8 Faz',
-                badgeColor: 'bg-white/[0.1] text-white border-white/[0.15] font-semibold',
+                badge: undefined,
+                badgeColor: '',
               },
               {
                 id: 'blokaj',
-                title: 'Yetki & Blokaj (Fren)',
+                title: 'Kısıtlamalar',
                 category: 'system',
                 icon: <Lock className="w-4 h-4 text-[#FF453A]" />,
-                badge: `${systemBlockages.filter((b) => !b.isUnlocked).length} Fren`,
+                badge: `${systemBlockages.filter((b) => !b.isUnlocked).length}`,
                 badgeColor: 'bg-[#FF453A]/15 text-[#FF453A] border-[#FF453A]/30 font-semibold',
               },
               {
                 id: 'audit',
-                title: 'Mühürlü Audit Log',
+                title: 'İşlem Kayıtları',
                 category: 'system',
                 icon: <Activity className="w-4 h-4 text-[#30D158]" />,
-                badge: 'SHA-256',
-                badgeColor: 'bg-[#30D158]/15 text-[#30D158] border-[#30D158]/30 font-mono',
-              },
-              {
-                id: 'autonomous_audit',
-                title: '71/71 Denetim, Defter & Time-Travel',
-                category: 'system',
-                icon: <ShieldCheck className="w-4 h-4 text-[#10B981]" />,
-                badge: '71/71 TAM',
-                badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-mono font-bold',
-              },
-              {
-                id: 'website_audit',
-                title: 'Web & SEO Denetimi',
-                category: 'system',
-                icon: <Globe className="w-4 h-4 text-[#0A84FF]" />,
-                badge: `${driverApplications.length} Aday`,
-                badgeColor: 'bg-[#0A84FF]/15 text-[#0A84FF] border-[#0A84FF]/30 font-semibold',
+                badge: undefined,
+                badgeColor: '',
               },
               {
                 id: 'business_subusers',
-                title: 'İşletme Alt Kullanıcıları & ACL',
+                title: 'İşletme Yetkileri',
                 category: 'system',
                 icon: <Building2 className="w-4 h-4 text-[#BF5AF2]" />,
-                badge: `${businessAccounts.reduce((sum, b) => sum + b.subUsers.length, 0)} Alt Kullanıcı`,
-                badgeColor: 'bg-[#BF5AF2]/15 text-[#BF5AF2] border-[#BF5AF2]/30 font-semibold',
+                badge: undefined,
+                badgeColor: '',
               },
               {
                 id: 'tariffs',
-                title: 'Tarife & Çarpan Motoru',
+                title: 'Tarife Ayarları',
                 category: 'system',
                 icon: <Sliders className="w-4 h-4 text-[#0A84FF]" />,
                 badge: undefined,
@@ -757,8 +721,11 @@ export const AdminDashboard: React.FC = () => {
                               <span className="w-1.5 h-1.5 rounded-full bg-[#FF453A]" />
                               <strong className="text-white">Varış:</strong> {currentRide.dropoff.address}
                             </div>
-                            <div className="text-[10px] text-[#8E8E93] pt-0.5">
-                              Yolcu: {currentRide.customerName} ({currentRide.customerPhone})
+                            <div className="text-[10px] text-[#8E8E93] pt-0.5 flex items-center justify-between">
+                              <span>Yolcu: {currentRide.customerName} ({currentRide.customerPhone})</span>
+                              <span className="font-mono text-[#0A84FF]">
+                                Atanan: {currentRide.courierName || 'Bekliyor'} • {currentRide.assignedVehicleId || '-'} (v{currentRide.assignmentVersion || 1})
+                              </span>
                             </div>
                           </div>
 
@@ -768,18 +735,17 @@ export const AdminDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setActiveCourierId(selectedCourier.id);
-                                  acceptRide();
+                                  assignCourierToOrder(currentRide.id, selectedCourier.id);
                                   showNotification({
-                                    title: 'Haritadan Kurye Sevk Edildi',
-                                    message: `${currentRide.id} seferi haritada seçtiğiniz ${selectedCourier.name} (${selectedCourier.plate}) kuryesine atandı.`,
+                                    title: 'Haritadan Kurye Sevk Edildi (Kanonik Atama)',
+                                    message: `${currentRide.id} seferi haritada seçtiğiniz ${selectedCourier.name} (${selectedCourier.plate}) kuryesine kanonik olarak atandı.`,
                                     type: 'success',
                                   });
                                 }}
                                 className="w-full min-h-[44px] py-2.5 px-3 bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                               >
                                 <UserCheck className="w-4 h-4" />
-                                <span>Haritadan Seçili Kuryeyi Ata: {selectedCourier.name} ({selectedCourier.plate})</span>
+                                <span>Haritadan Seçili Kuryeyi Bu Siparişe Ata: {selectedCourier.name} ({selectedCourier.plate})</span>
                               </button>
                             )}
 
@@ -806,16 +772,18 @@ export const AdminDashboard: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    startTrip(currentRide.boardingCode || '');
-                                    showNotification({
-                                      title: 'Sefer Başlatıldı',
-                                      message: 'Sefer seyir halinde olarak başlatıldı.',
-                                      type: 'success',
-                                    });
+                                    const ok = startTrip(currentRide.boardingCode || '');
+                                    if (ok) {
+                                      showNotification({
+                                        title: 'Sefer Başlatıldı (PIN Doğrulandı)',
+                                        message: 'Yolcu biniş PIN kodu doğrulanarak sefer seyir halinde başlatıldı.',
+                                        type: 'success',
+                                      });
+                                    }
                                   }}
                                   className="py-2.5 bg-[#30D158] hover:bg-[#34C759] text-black font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
                                 >
-                                  Seferi Başlat
+                                  PIN Doğrula & Başlat ({currentRide.boardingCode})
                                 </button>
                               )}
 
@@ -824,11 +792,6 @@ export const AdminDashboard: React.FC = () => {
                                   type="button"
                                   onClick={() => {
                                     completeTrip();
-                                    showNotification({
-                                      title: 'Sefer Tamamlandı',
-                                      message: `${currentRide.id} seferi başarıyla tamamlandı.`,
-                                      type: 'success',
-                                    });
                                   }}
                                   className="col-span-2 py-2.5 bg-[#30D158] hover:bg-[#34C759] text-black font-bold text-xs rounded-xl shadow-md transition-all active:scale-95"
                                 >
@@ -875,7 +838,12 @@ export const AdminDashboard: React.FC = () => {
                               <Bike className="w-4 h-4 text-white" />
                             </div>
                             <div>
-                              <h4 className="font-bold text-white text-xs">{selectedCourier.name}</h4>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="font-bold text-white text-xs">{selectedCourier.name}</h4>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.08] text-[#8E8E93] font-mono">
+                                  Haritada Seçili Kurye
+                                </span>
+                              </div>
                               <span className="text-[10px] text-[#0A84FF] font-mono">
                                 {selectedCourier.plate} · {selectedCourier.motorcycle}
                               </span>

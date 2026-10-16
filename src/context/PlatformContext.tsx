@@ -204,7 +204,7 @@ interface PlatformContextType {
   rejectRide: () => void;
   arriveAtPickup: () => void;
   startTrip: (enteredCode: string) => boolean;
-  completeTrip: (deliveryPhotoUrl?: string) => void;
+  completeTrip: (deliveryPhotoUrl?: string) => boolean;
   rateCompletedRide: (rating: number, review?: string) => void;
   dismissCompletedRide: () => void;
 
@@ -683,15 +683,159 @@ function saveToStorage<T>(key: string, value: T): void {
   }
 }
 
+export function sanitizeUserMessageText(raw: string): string {
+  if (!raw) return '';
+  if (
+    raw.includes('providerInfo') ||
+    raw.includes('authInfo') ||
+    raw.includes('users_public/') ||
+    raw.includes('users_private/') ||
+    raw.includes('Missing or insufficient permissions') ||
+    (raw.trim().startsWith('{') && raw.includes('"error"'))
+  ) {
+    return 'Bulut veritabanı erişim yetkisi kısıtlı veya çevrimdışı (Yerel çalışma modu aktif).';
+  }
+  return raw
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[gizli-eposta]')
+    .replace(/\b(users_public|users_private|orders|batch_routes|wire_notices)\/[A-Za-z0-9_-]+/g, '[korunan-yol]');
+}
+
+export function verifyTripPinGuard(
+  ride: RideOrder | null,
+  enteredPin: string,
+  actingCourierId?: string
+): { allowed: boolean; code?: string; message?: string } {
+  if (!ride) {
+    return { allowed: false, code: 'NO_ACTIVE_TRIP', message: 'Aktif sefer kaydı bulunamadı.' };
+  }
+  if (ride.status !== 'arrived') {
+    return {
+      allowed: false,
+      code: 'INVALID_STATE_FOR_PIN',
+      message: `PIN doğrulaması yalnızca alış noktasında ('arrived') yapılabilir. Mevcut durum: ${ride.status}.`,
+    };
+  }
+  if (actingCourierId && ride.courierId && ride.courierId !== actingCourierId) {
+    return {
+      allowed: false,
+      code: 'COURIER_MISMATCH',
+      message: 'Bu sefer başka bir kuryeye atanmıştır. Yetkisiz işlem engellendi.',
+    };
+  }
+  if (ride.verificationStatus === 'verified' || ride.pinUsed) {
+    return {
+      allowed: false,
+      code: 'PIN_ALREADY_USED',
+      message: 'Bu biniş/teslimat PIN kodu daha önce kullanılmıştır.',
+    };
+  }
+  if (ride.pinExpiresAt && new Date(ride.pinExpiresAt).getTime() < Date.now()) {
+    return {
+      allowed: false,
+      code: 'PIN_EXPIRED',
+      message: 'Biniş PIN kodunun geçerlilik süresi dolmuştur.',
+    };
+  }
+  const cleanPin = (enteredPin || '').trim();
+  const expectedPin = (ride.boardingCode || '').trim();
+
+  if (ride.serviceType !== 'motosiklet' && cleanPin === 'PICKUP_CONFIRMED') {
+    return { allowed: true };
+  }
+
+  if (!cleanPin || cleanPin.length < 4) {
+    return {
+      allowed: false,
+      code: 'PIN_EMPTY_OR_SHORT',
+      message: 'Lütfen 4 haneli güvenlik PIN kodunu eksiksiz giriniz.',
+    };
+  }
+  if (!expectedPin || cleanPin !== expectedPin) {
+    return {
+      allowed: false,
+      code: 'PIN_MISMATCH',
+      message: 'Girilen güvenlik PIN kodu hatalı. Sefer başlatılamadı ve tahsilat üretilmedi.',
+    };
+  }
+  return { allowed: true };
+}
+
+export function verifyDailyClosingGuard(params: {
+  hasOpenService: boolean;
+  hasUnapprovedTransfer: boolean;
+  uncollectedCashAmount: number;
+  overrideNote?: string;
+}): { allowed: boolean; issues: string[] } {
+  const issues: string[] = [];
+  if (params.hasOpenService) issues.push('Açık servis iş emirleri mevcut');
+  if (params.hasUnapprovedTransfer) issues.push('Onay bekleyen kasa transferi var');
+  if (params.uncollectedCashAmount > 0) {
+    issues.push(`${params.uncollectedCashAmount} ₺ tahsil edilmemiş nakit açıkta`);
+  }
+  if (issues.length > 0 && !(params.overrideNote && params.overrideNote.trim().length > 0)) {
+    return { allowed: false, issues };
+  }
+  return { allowed: true, issues };
+}
+
+export function verifyTripCompletionGuard(
+  ride: RideOrder | null,
+  actingCourierId?: string,
+  existingReconciliations: TransactionReconciliationRecord[] = []
+): { allowed: boolean; code?: string; message?: string } {
+  if (!ride) {
+    return { allowed: false, code: 'NO_ACTIVE_TRIP', message: 'Tamamlanacak aktif sefer bulunamadı.' };
+  }
+  const idempotencyKey = `idem_${ride.id}_settlement`;
+  const alreadySettled =
+    Boolean(ride.isSettled) ||
+    Boolean(ride.financialPostingId) ||
+    existingReconciliations.some((r) => r.idempotencyKey === idempotencyKey || r.rideId === ride.id);
+  if (alreadySettled || ride.status === 'completed' || ride.status === 'partially_completed') {
+    return {
+      allowed: false,
+      code: 'DUPLICATE_SETTLEMENT_BLOCKED',
+      message: `Bu sefer (${ride.id}) için tahsilat ve mutabakat daha önce yapılmıştır.`,
+    };
+  }
+  if (ride.status !== 'in_progress') {
+    return {
+      allowed: false,
+      code: 'NOT_IN_PROGRESS',
+      message: `Sefer yalnızca 'in_progress' (Sürüş/Dağıtım) aşamasındayken tamamlanabilir. Mevcut durum: ${ride.status}.`,
+    };
+  }
+  if (actingCourierId && ride.courierId && ride.courierId !== actingCourierId) {
+    return {
+      allowed: false,
+      code: 'COURIER_MISMATCH',
+      message: 'Atanmamış kurye seferi tamamlayamaz.',
+    };
+  }
+  if (ride.serviceType === 'motosiklet') {
+    if (ride.verificationStatus !== 'verified' || !ride.verifiedAt || !ride.pinUsed) {
+      return {
+        allowed: false,
+        code: 'PIN_NOT_VERIFIED',
+        message: 'PIN doğrulaması tamamlanmadan yolculuk bitirilemez ve hakediş/tahsilat oluşturulamaz!',
+      };
+    }
+  }
+  return { allowed: true };
+}
+
 export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // B11: URL hash deep linking sync
   const getInitialView = (): PlatformView => {
+    const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website'];
     if (typeof window !== 'undefined' && window.location.hash) {
       const hashView = window.location.hash.replace('#', '') as PlatformView;
-      const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website', 'presentation', 'typography'];
       if (validViews.includes(hashView)) return hashView;
     }
-    return loadFromStorage<PlatformView>('activeView', 'split');
+    const storedView = loadFromStorage<string>('activeView', 'website') as PlatformView;
+    if (validViews.includes(storedView)) return storedView;
+    saveToStorage('activeView', 'website');
+    return 'website';
   };
 
   const [activeView, setActiveViewState] = useState<PlatformView>(getInitialView);
@@ -706,16 +850,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Sync hash changes from back/forward buttons
   useEffect(() => {
+    const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website'];
+    if (!validViews.includes(activeView)) {
+      setActiveView('website');
+    }
     const handleHashChange = () => {
       const hashView = window.location.hash.replace('#', '') as PlatformView;
-      const validViews: PlatformView[] = ['split', 'customer', 'business', 'courier', 'admin', 'website', 'presentation', 'typography'];
       if (validViews.includes(hashView) && hashView !== activeView) {
         setActiveViewState(hashView);
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeView]);
+  }, [activeView, setActiveView]);
 
   // B4: Loading & Error State
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -724,6 +871,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // B20: Idempotency Key Set
   const idempotencyKeysRef = useRef<Set<string>>(new Set());
+  const completedTripLocksRef = useRef<Set<string>>(new Set());
 
   // B1: Persistent States with useLocalStorageState & BroadcastChannel multi-tab sync
   const [customerProfileMode, setCustomerProfileMode] = useState<UserProfileMode>('individual');
@@ -868,11 +1016,13 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     triggerHapticAndAudio(isCritical || type === 'error');
 
-    const calculatedDuration = durationMs || (isCritical ? 10000 : Math.max(5000, (title.length + message.length) * 65));
+    const safeTitle = sanitizeUserMessageText(title);
+    const safeMessage = sanitizeUserMessageText(message);
+    const calculatedDuration = durationMs || (isCritical ? 10000 : Math.max(5000, (safeTitle.length + safeMessage.length) * 65));
     const notif: AccessibleNotification = {
       id: generateSecureUUID('notif'),
-      title,
-      message,
+      title: safeTitle,
+      message: safeMessage,
       type,
       timestamp: now,
       durationMs: calculatedDuration,
@@ -882,7 +1032,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Geçmişte de en fazla 25 kayıt tut, kapatılanlar filter() ile temizlenir
     setNotificationHistory((prev) => [notif, ...prev.filter((item) => item.id !== notif.id).slice(0, 24)]);
     setScreenReaderAnnouncement({
-      message: `${type === 'error' ? 'Kritik Hata' : type === 'warning' ? 'Uyarı' : 'Bilgi'}: ${title}. ${message}`,
+      message: `${type === 'error' ? 'Kritik Hata' : type === 'warning' ? 'Uyarı' : 'Bilgi'}: ${safeTitle}. ${safeMessage}`,
       type: type === 'error' || isCritical ? 'assertive' : 'polite',
     });
 
@@ -1834,7 +1984,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       signedHash: seal,
     };
 
-    setLedgerEntries((prev) => [newLedgerEntry, ...prev]);
+    setLedgerEntries((prev) =>
+      prev.some((e) => e.transactionRefId === params.transactionRefId) ? prev : [newLedgerEntry, ...prev]
+    );
     return newLedgerEntry;
   };
 
@@ -2473,33 +2625,81 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const startCourierShift = (params: { bikePlate: string; startKm: number; photosApproved: boolean }) => {
+    const cleanPlate = (params.bikePlate || activeCourier.plate).trim();
+    const startedAt = new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
     setCourierShift({
       isShiftActive: true,
-      bikePlate: params.bikePlate,
+      bikePlate: cleanPlate,
       startKm: params.startKm,
       photosApproved: params.photosApproved,
-      startedAt: new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }),
+      startedAt,
+    });
+    setCouriers((prev) =>
+      prev.map((c) => (c.id === activeCourierId ? { ...c, plate: cleanPlate, version: (c.version || 1) + 1 } : c))
+    );
+    recordAuditLog({
+      actionType: 'UPDATE',
+      screenName: 'TFKS Vardiya & Zimmet Masası',
+      recordId: activeCourierId,
+      previousValue: 'Vardiya Kapalı',
+      newValue: `Vardiya Açık (${cleanPlate} · ${params.startKm} km)`,
+      justification: 'Kurye vardiya başlangıcı ve kanonik plaka/zimmet senkronizasyonu tamamlandı.',
     });
   };
 
   const endCourierShift = () => {
     setCourierShift((prev) => ({ ...prev, isShiftActive: false }));
+    recordAuditLog({
+      actionType: 'UPDATE',
+      screenName: 'TFKS Vardiya & Zimmet Masası',
+      recordId: activeCourierId,
+      previousValue: `Vardiya Açık (${courierShift.bikePlate})`,
+      newValue: 'Vardiya Kapatıldı',
+      justification: 'Kurye vardiyası sonlandırıldı.',
+    });
   };
 
   const payCourierPenalty = (id: string) => {
+    const targetPenalty = courierPenalties.find((p) => p.id === id);
+    if (!targetPenalty || targetPenalty.status === 'paid') {
+      return;
+    }
+    const amountToDeduct = roundCurrency(targetPenalty.discountedAmount || targetPenalty.fullAmount);
     setCourierPenalties((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: 'paid' } : p))
     );
+    setCouriers((prev) =>
+      prev.map((c) =>
+        c.id === activeCourierId
+          ? {
+              ...c,
+              wallet: {
+                ...c.wallet,
+                pendingPayout: Math.max(0, roundCurrency(c.wallet.pendingPayout - amountToDeduct)),
+              },
+            }
+          : c
+      )
+    );
+    recordLedgerEntry({
+      accountDebit: `320-KURYE-HAKEDIS-CARI (${activeCourier.name})`,
+      accountCredit: '360-TRAFIK-CEZA-ODEME-FONU',
+      amount: amountToDeduct,
+      transactionRefId: `PENALTY-${id}`,
+      description: `Trafik Cezası Hakediş Mahsubu (${targetPenalty.code} - ${targetPenalty.title})`,
+    });
+    recordAuditLog({
+      actionType: 'UPDATE',
+      screenName: 'TFKS Ceza & HGS Cari Masası',
+      recordId: id,
+      previousValue: 'Durum: Ödenmedi (unpaid)',
+      newValue: `Durum: Ödendi (${amountToDeduct} ₺ Hakedişten Mahsup Edildi)`,
+      justification: `${targetPenalty.code} trafik cezası %25 indirimli olarak kurye hakediş carisinden düşüldü.`,
+    });
   };
 
   const closeDayAndSeal = () => {
-    setDailyClosingStatus({
-      isClosed: true,
-      closedAt: new Date().toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }),
-      totalSettled: 5490,
-      totalCashCollected: 1480,
-      auditHash: `SHA256-${Math.random().toString(36).substring(2, 10).toUpperCase()}-SEALED`,
-    });
+    runDailyClosingCheck();
   };
 
   // Favorite Drivers & Direct Booking & 7/24 Persistent Chat
@@ -2608,9 +2808,19 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       packageNote?: string;
     }
   ) => {
+    if (currentRide && ['searching', 'offered', 'accepted', 'arrived', 'in_progress'].includes(currentRide.status)) {
+      showNotification({
+        title: 'Aktif Seferiniz Mevcut',
+        message: `Devam eden ${currentRide.id} kodlu bir seferiniz bulunmaktadır. Lütfen önce mevcut seferi tamamlayınız veya iptal ediniz.`,
+        type: 'warning',
+      });
+      return;
+    }
+
     const calc = calculateFare(params.serviceType, params.pickup, params.dropoff);
     const targetCourier = couriers.find((c) => c.id === courierId) || couriers[0];
     const boardingCode = Math.floor(1000 + Math.random() * 9000).toString();
+    const deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
 
     // 5% Loyalty discount for booking a favorite driver directly — M0 %0 Komisyon (%100 Sürücü Hakedişi)
     const discountedFare = Math.max(20, Math.round(calc.totalFare * 0.95));
@@ -2644,14 +2854,24 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       status: 'offered', // Directly rings that specific driver
       courierId: targetCourier.id,
       courierName: targetCourier.name,
+      assignedCourierId: targetCourier.id,
+      assignedVehicleId: targetCourier.plate,
+      assignmentVersion: 1,
+      verificationStatus: params.serviceType === 'motosiklet' ? 'pending' : 'not_required',
+      pinExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      pinUsed: false,
+      fareQuoteId: `FQ-${orderId}`,
+      farePolicyVersion: 'v2.4-ZERO-COMM',
       isDirectBooking: true,
       targetCourierName: targetCourier.name,
       boardingCode,
+      deliveryCode,
       packageNote: params.packageNote,
       createdAt: new Date().toISOString(),
     };
 
     setCurrentRide(newOrder);
+    setAllRides((prev) => [newOrder, ...prev.filter((r) => r.id !== newOrder.id)]);
     setActiveCourierId(targetCourier.id);
   };
 
@@ -3089,10 +3309,17 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       businessOrderNumber,
       multiPackageCount,
       paymentMethod: chosenPaymentMethod,
+      assignmentVersion: 1,
+      verificationStatus: serviceType === 'motosiklet' ? 'pending' : 'not_required',
+      pinExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      pinUsed: false,
+      fareQuoteId: `FQ-${orderId}`,
+      farePolicyVersion: 'v2.4-ZERO-COMM',
       createdAt: new Date().toISOString(),
     };
 
     setCurrentRide(newOrder);
+    setAllRides((prev) => [newOrder, ...prev.filter((r) => r.id !== newOrder.id)]);
 
     // Kural 2.7 & 3.2 Eşleştirme Motoru:
     // Yetki, ekipman modu ve kask durumuna göre filtreleme
@@ -3120,7 +3347,20 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         couriers[0];
 
       if (matched) {
-        setCurrentRide((prev) => (prev ? { ...prev, status: 'offered', courierId: matched.id } : null));
+        setCurrentRide((prev) => {
+          if (!prev) return null;
+          const updated: RideOrder = {
+            ...prev,
+            status: 'offered',
+            courierId: matched.id,
+            courierName: matched.name,
+            assignedCourierId: matched.id,
+            assignedVehicleId: matched.plate,
+            assignmentVersion: (prev.assignmentVersion || 1) + 1,
+          };
+          setAllRides((list) => [updated, ...list.filter((r) => r.id !== updated.id)]);
+          return updated;
+        });
         setActiveCourierId(matched.id);
       }
     }, 1200);
@@ -3383,68 +3623,160 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Courier Actions
   const acceptRide = () => {
     if (!currentRide) return;
-    setCurrentRide({
+    const assignedCourierObj =
+      couriers.find((c) => c.id === (currentRide.courierId || activeCourierId)) || activeCourier;
+    const nextVersion = (currentRide.assignmentVersion || 1) + 1;
+    const updated: RideOrder = {
       ...currentRide,
+      courierId: assignedCourierObj.id,
+      courierName: assignedCourierObj.name,
+      assignedCourierId: assignedCourierObj.id,
+      assignedVehicleId: assignedCourierObj.plate,
+      assignmentVersion: nextVersion,
       status: 'accepted',
       acceptedAt: new Date().toISOString(),
-    });
+      version: (currentRide.version || 1) + 1,
+    };
+    setCurrentRide(updated);
+    setAllRides((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
+    setActiveCourierId(assignedCourierObj.id);
 
     setCouriers((prev) =>
-      prev.map((c) => (c.id === currentRide.courierId ? { ...c, status: 'busy' } : c))
+      prev.map((c) => (c.id === assignedCourierObj.id ? { ...c, status: 'busy' } : c))
     );
   };
 
   const rejectRide = () => {
     if (!currentRide) return;
-    // Offer to next courier or stay searching
     const otherAvailable = couriers.filter(
       (c) => c.isOnline && c.status === 'available' && c.id !== currentRide.courierId
     );
     if (otherAvailable.length > 0) {
-      setCurrentRide({
+      const nextCourier = otherAvailable[0];
+      const nextVersion = (currentRide.assignmentVersion || 1) + 1;
+      const updated: RideOrder = {
         ...currentRide,
         status: 'offered',
-        courierId: otherAvailable[0].id,
-      });
-      setActiveCourierId(otherAvailable[0].id);
+        courierId: nextCourier.id,
+        courierName: nextCourier.name,
+        assignedCourierId: nextCourier.id,
+        assignedVehicleId: nextCourier.plate,
+        assignmentVersion: nextVersion,
+        version: (currentRide.version || 1) + 1,
+      };
+      setCurrentRide(updated);
+      setAllRides((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
+      setActiveCourierId(nextCourier.id);
     } else {
-      setCurrentRide({
+      const updated: RideOrder = {
         ...currentRide,
         status: 'searching',
         courierId: undefined,
-      });
+        courierName: undefined,
+        assignedCourierId: undefined,
+        assignedVehicleId: undefined,
+        assignmentVersion: (currentRide.assignmentVersion || 1) + 1,
+        version: (currentRide.version || 1) + 1,
+      };
+      setCurrentRide(updated);
+      setAllRides((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
     }
   };
 
   const arriveAtPickup = () => {
     if (!currentRide) return;
-    setCurrentRide({
+    if (currentRide.status !== 'accepted') {
+      showNotification({
+        title: 'Geçersiz Durum Geçişi',
+        message: 'Alış noktasına varış yalnızca kabul edilmiş (accepted) görevlerde işaretlenebilir.',
+        type: 'error',
+      });
+      return;
+    }
+    const updated: RideOrder = {
       ...currentRide,
       status: 'arrived',
-    });
+      version: (currentRide.version || 1) + 1,
+    };
+    setCurrentRide(updated);
+    setAllRides((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
   };
 
   const startTrip = (enteredCode: string): boolean => {
-    if (!currentRide) return false;
-    // For passenger ride: verify boarding code
-    if (currentRide.serviceType === 'motosiklet') {
-      if (enteredCode.trim() !== currentRide.boardingCode) {
-        return false;
-      }
+    const check = verifyTripPinGuard(currentRide, enteredCode, currentRide?.courierId);
+    if (!check.allowed || !currentRide) {
+      showNotification({
+        title: 'PIN Doğrulama Reddedildi',
+        message: check.message || 'Geçersiz PIN kodu.',
+        type: 'error',
+        isCritical: true,
+      });
+      recordAuditLog({
+        actionType: 'REJECT',
+        screenName: 'Kurye Görev Terminali (PIN Kontrolü)',
+        recordId: currentRide?.id || 'UNKNOWN',
+        previousValue: currentRide?.status || 'none',
+        newValue: 'PIN_REJECTED',
+        justification: `Başarısız PIN doğrulama denemesi (${check.code || 'INVALID_PIN'}).`,
+      });
+      return false;
     }
 
-    setCurrentRide({
+    const verifiedAt = new Date().toISOString();
+    const updated: RideOrder = {
       ...currentRide,
       status: 'in_progress',
+      verificationStatus: 'verified',
+      verifiedAt,
+      pinUsed: true,
+      version: (currentRide.version || 1) + 1,
+    };
+
+    setCurrentRide(updated);
+    setAllRides((prev) => [updated, ...prev.filter((r) => r.id !== updated.id)]);
+    recordAuditLog({
+      actionType: 'APPROVE',
+      screenName: 'Kurye Görev Terminali (PIN Kontrolü)',
+      recordId: updated.id,
+      previousValue: 'arrived',
+      newValue: 'in_progress',
+      justification: `Yolcu/Teslimat biniş PIN kodu doğrulandı (${verifiedAt}). Sefer başlatıldı.`,
     });
     return true;
   };
 
-  const completeTrip = (deliveryPhotoUrl?: string) => {
-    if (!currentRide) return;
+  const completeTrip = (deliveryPhotoUrl?: string): boolean => {
+    if (!currentRide) return false;
+
+    if (completedTripLocksRef.current.has(currentRide.id)) {
+      showNotification({
+        title: 'Mükerrer İşlem Engellendi',
+        message: `Bu sefer (${currentRide.id}) için tahsilat ve mutabakat işlemi zaten tamamlanmıştır.`,
+        type: 'warning',
+      });
+      return false;
+    }
+
+    const guard = verifyTripCompletionGuard(currentRide, currentRide.courierId, reconciliationRecords);
+    if (!guard.allowed) {
+      showNotification({
+        title: 'Tamamlama / Tahsilat Engellendi',
+        message: guard.message || 'Sefer tamamlama koşulları sağlanmadı.',
+        type: 'error',
+        isCritical: true,
+      });
+      recordAuditLog({
+        actionType: 'BLOCK',
+        screenName: 'Sefer Tamamlama & Hakediş Motoru',
+        recordId: currentRide.id,
+        previousValue: currentRide.status,
+        newValue: guard.code || 'COMPLETION_BLOCKED',
+        justification: guard.message || 'Doğrulanmamış veya mükerrer tamamlama isteği reddedildi.',
+      });
+      return false;
+    }
 
     // 5. Kural: Çoklu teslimatı paket ve durak bazında incele.
-    // Tamamlanmamış (pending / in_transit) paket varken ana işin yanlışlıkla kapanmasını engelle!
     if (currentRide.packagesList && currentRide.packagesList.length > 0) {
       const unfinishedPackages = currentRide.packagesList.filter(
         (p) => p.status === 'pending' || p.status === 'in_transit'
@@ -3452,37 +3784,29 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (unfinishedPackages.length > 0) {
         showNotification({
           title: 'Teslimat Kapatılamaz (Sonuçlandırılmamış Paketler)',
-          message: `Dağıtımı bekleyen/yolda olan ${unfinishedPackages.length} paket mevcut (${unfinishedPackages.map((p) => p.trackingCode).join(', ')}). Ana teslimatı tamamlamak için tüm paketleri (Teslim Edildi, Teslim Edilemedi veya İade) olarak sonuçlandırınız!`,
+          message: `Dağıtımı bekleyen/yolda olan ${unfinishedPackages.length} paket mevcut (${unfinishedPackages.map((p) => p.trackingCode).join(', ')}). Ana teslimatı tamamlamak için tüm paketleri sonuçlandırınız!`,
           type: 'error',
           isCritical: true,
         });
-        return;
+        return false;
       }
     }
 
-    // 2. Kural: İdempotency kontrolü - Aynı işlemin tekrar tamamlanması veya yeniden denenmesi ikinci bir tahsilat/hakediş oluşturmasın!
     const idempotencyKey = `idem_${currentRide.id}_settlement`;
-    const alreadySettled = reconciliationRecords.some((r) => r.idempotencyKey === idempotencyKey);
-    if (currentRide.isSettled || alreadySettled) {
-      showNotification({
-        title: 'Mükerrer İşlem Engellendi',
-        message: `Bu sefer (${currentRide.id}) için tahsilat ve mutabakat daha önce yapılmıştır. İkinci bir ücret düşümü veya mükerrer sürücü hakedişi engellendi.`,
-        type: 'warning',
-      });
-      return;
-    }
+    completedTripLocksRef.current.add(currentRide.id);
 
-    // Paket durumlarına göre genel sefer statüsü:
     let finalRideStatus: RideStatus = 'completed';
     if (currentRide.packagesList && currentRide.packagesList.length > 0) {
-      const anyDelivered = currentRide.packagesList.some((p) => p.status === 'delivered');
-      const anyFailedOrReturned = currentRide.packagesList.some((p) => p.status === 'failed' || p.status === 'returned');
+      const anyFailedOrReturned = currentRide.packagesList.some(
+        (p) => p.status === 'failed' || p.status === 'returned'
+      );
       if (anyFailedOrReturned) {
         finalRideStatus = 'partially_completed';
       }
     }
 
     const method: PaymentMethod = currentRide.paymentMethod || selectedPaymentMethod || 'card';
+    const financialPostingId = `REC-${currentRide.id}`;
 
     const completed: RideOrder = {
       ...currentRide,
@@ -3491,12 +3815,16 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       paymentMethod: method,
       isSettled: true,
       settledAt: new Date().toLocaleString('tr-TR'),
-      settlementId: `REC-${currentRide.id}`,
+      settlementId: financialPostingId,
+      financialPostingId,
       settlementRuleCode: 'KURAL-F01-ONAYLI',
-      deliveryPhotoUrl: deliveryPhotoUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80',
+      deliveryPhotoUrl:
+        deliveryPhotoUrl ||
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=400&q=80',
+      version: (currentRide.version || 1) + 1,
     };
 
-    setAllRides((prev) => [completed, ...prev]);
+    setAllRides((prev) => [completed, ...prev.filter((r) => r.id !== completed.id)]);
     setCurrentRide(completed);
 
     // 4. Sürücü durumunu güncelle: aktif başka görevi yoksa ve çevrimiçi/yetkili ise available yap
@@ -3578,7 +3906,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isIdempotentVerified: true,
       notes: settlementNote,
     };
-    setReconciliationRecords((prev) => [newReconciliation, ...prev]);
+    setReconciliationRecords((prev) =>
+      prev.some((r) => r.idempotencyKey === idempotencyKey) ? prev : [newReconciliation, ...prev]
+    );
 
     // A20 & B6: Çift Taraflı Muhasebe Defteri (Double-Entry General Ledger) Kayıtları (%0 Komisyon — %100 Sürücü/Kurye Hakedişi)
     recordLedgerEntry({
@@ -3778,6 +4108,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch {
       // ignore
     }
+    return true;
   };
 
   const rateCompletedRide = (rating: number, review?: string) => {
@@ -4191,6 +4522,7 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const assignCourierToOrder = (orderId: string, courierId: string) => {
     const courier = couriers.find((c) => c.id === courierId);
     if (!courier) return;
+    const acceptedAt = new Date().toISOString();
     setAllRides((prev) =>
       prev.map((r) =>
         r.id === orderId
@@ -4198,13 +4530,34 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...r,
               courierId,
               courierName: courier.name,
+              assignedCourierId: courierId,
+              assignedVehicleId: courier.plate,
+              assignmentVersion: (r.assignmentVersion || 1) + 1,
               status: 'accepted',
-              acceptedAt: new Date().toISOString(),
+              acceptedAt,
               version: (r.version || 1) + 1,
             }
           : r
       )
     );
+    if (currentRide && currentRide.id === orderId) {
+      setCurrentRide((prev) =>
+        prev
+          ? {
+              ...prev,
+              courierId,
+              courierName: courier.name,
+              assignedCourierId: courierId,
+              assignedVehicleId: courier.plate,
+              assignmentVersion: (prev.assignmentVersion || 1) + 1,
+              status: 'accepted',
+              acceptedAt,
+              version: (prev.version || 1) + 1,
+            }
+          : null
+      );
+    }
+    setActiveCourierId(courierId);
     setCouriers((prev) =>
       prev.map((c) => (c.id === courierId ? { ...c, status: 'busy' } : c))
     );

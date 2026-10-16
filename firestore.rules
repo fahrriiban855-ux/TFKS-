@@ -169,7 +169,7 @@ service cloud.firestore {
 
     // 3. /orders/{orderId}
     match /orders/{orderId} {
-      allow get: if isValidId(orderId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow get: if isValidId(orderId) && isVerifiedUser() && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
       allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isVerifiedUser() && isValidId(orderId) &&
         isValidPlatformOrder(incoming(), orderId) &&
@@ -194,7 +194,7 @@ service cloud.firestore {
 
     // 4. /batch_routes/{batchId}
     match /batch_routes/{batchId} {
-      allow get: if isValidId(batchId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow get: if isValidId(batchId) && isVerifiedUser() && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
       allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isVerifiedUser() && isValidId(batchId) &&
         isValidBatchRoutePlan(incoming(), batchId) &&
@@ -217,7 +217,7 @@ service cloud.firestore {
 
     // 5. /wire_notices/{noticeId}
     match /wire_notices/{noticeId} {
-      allow get: if isValidId(noticeId) && isVerifiedUser() && (existing().ownerId == request.auth.uid || isAdmin());
+      allow get: if isValidId(noticeId) && isVerifiedUser() && (resource == null || existing().ownerId == request.auth.uid || isAdmin());
       allow list: if isVerifiedUser() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create: if isVerifiedUser() && isValidId(noticeId) &&
         isValidWireNotice(incoming(), noticeId) &&

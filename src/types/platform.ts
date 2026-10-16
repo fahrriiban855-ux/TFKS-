@@ -1,4 +1,4 @@
-export type PlatformView = 'split' | 'customer' | 'business' | 'courier' | 'admin' | 'website' | 'presentation' | 'typography' | 'wireframes';
+export type PlatformView = 'split' | 'customer' | 'business' | 'courier' | 'admin' | 'website';
 
 export type UserProfileMode = 'individual' | 'business';
 

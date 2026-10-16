@@ -1,6 +1,6 @@
 {
-  "summary": "MotoPilot / TFKS uygulama planı 8 ana konu başlığı (KONU-01..KONU-08) altında bölümlendirilip içeriklendirildi; mevcut kod tabanında tamamlanmış olan modüller (YAPILANLAR) ile yapılanlardan çıkarıldıktan sonra kalan 6 net eksik iş paketi (GAP-01..GAP-06: İşletme Havale/EFT & Durum Makinesi, 42 Wireframe Tamamlaması [C-15, K-10..15, B-01..06], Hibrit Kapasite Dengeleme Motoru, Akıllı Çoklu Paket Rota Birleştirme & Auto-Dispatch, Kurumsal B2B Dış Sipariş Entegrasyon Merkezi ve Firebase Firestore/Auth + App Store/Play Store/PWA Süper Uygulama Paketlemesi) net olarak ayrıştırılıp uygulamaya geçiş sırasına (EXEC-01..EXEC-06) bağlandı.",
-  "updatedAt": "2026-10-14T02:44:15.446337991Z",
+  "summary": "Tüm uygulamayı kapsayan V2 Yönetici Ajan Sistemi (MOD 1 — KAPI 1) tespitleri ve 5 kritik saha/finans/durum makinesi kopukluğunu gidermek için hazırlanan dosya-kilitli AI Studio görev paketi.",
+  "updatedAt": "2026-10-15T01:49:28.159657075Z",
   "requestFeedback": true,
   "userFacing": true
 }

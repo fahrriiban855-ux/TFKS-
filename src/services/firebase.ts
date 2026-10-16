@@ -10,7 +10,9 @@ import {
 import {
   getFirestore,
   doc,
+  getDoc,
   setDoc,
+  updateDoc,
   getDocFromServer,
   collection,
   query,
@@ -52,87 +54,104 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export function sanitizeFirebaseError(
+  error: unknown,
+  operationType: OperationType
+): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('permission-denied') || lower.includes('insufficient permissions')) {
+    return 'Bulut veritabanı erişim yetkisi kısıtlı (Yerel çalışma modu aktif).';
+  }
+  if (lower.includes('offline') || lower.includes('unavailable') || lower.includes('network')) {
+    return 'Bulut bağlantısı çevrimdışı. Veriler yerel depoda korunuyor.';
+  }
+  if (lower.includes('popup-closed-by-user') || lower.includes('cancelled')) {
+    return 'Oturum açma işlemi kullanıcı tarafından iptal edildi.';
+  }
+  if (lower.includes('unauthenticated') || lower.includes('auth')) {
+    return 'Kimlik doğrulama oturumu doğrulanamadı.';
+  }
+  return `Bulut senkronizasyonu şu an kullanılamıyor (${operationType}). Yerel kayıt korundu.`;
+}
+
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
 ): never {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid ?? null,
-      email: auth.currentUser?.email ?? null,
-      emailVerified: auth.currentUser?.emailVerified ?? null,
-      isAnonymous: auth.currentUser?.isAnonymous ?? null,
-      tenantId: auth.currentUser?.tenantId ?? null,
-      providerInfo:
-        auth.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) || [],
-    },
+  const safeMessage = sanitizeFirebaseError(error, operationType);
+  console.warn('[Firestore Sanitized Diagnostics]', {
     operationType,
-    path,
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+    collection: path ? path.split('/')[0] : null,
+    status: safeMessage,
+  });
+  throw new Error(safeMessage);
 }
 
-// Validate connection on boot as required by firebase-integration-rpc skill
+// Validate connection on boot without masking permission errors as full live read/write
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'users_public', 'connection_probe'));
     return true;
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
+      console.warn('Firestore client is currently offline.');
       return false;
     }
-    // Permission denied on probe means online connection to Firestore succeeded
-    return true;
+    return false;
   }
 }
 
 testFirestoreConnection();
 
 export async function signInWithGooglePopup(): Promise<User | null> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = result.user;
-  if (user && user.emailVerified) {
-    const publicPath = `users_public/${user.uid}`;
-    const privatePath = `users_private/${user.uid}`;
-    try {
-      await setDoc(
-        doc(db, 'users_public', user.uid),
-        {
-          uid: user.uid,
-          displayName: (user.displayName || 'MotoPilot Kullanıcı').slice(0, 100),
-          activeRole: 'CUSTOMER',
-          hybridModeEnabled: true,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, publicPath);
-    }
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    if (user && user.emailVerified) {
+      const publicRef = doc(db, 'users_public', user.uid);
+      const privateRef = doc(db, 'users_private', user.uid);
+      const safeDisplayName = (user.displayName || 'MotoPilot Kullanıcı').slice(0, 100);
 
-    try {
-      await setDoc(
-        doc(db, 'users_private', user.uid),
-        {
-          uid: user.uid,
-          email: (user.email || 'user@motopilot.com.tr').slice(0, 160),
-          createdAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, privatePath);
+      try {
+        const publicSnap = await getDoc(publicRef);
+        if (!publicSnap.exists()) {
+          await setDoc(publicRef, {
+            uid: user.uid,
+            displayName: safeDisplayName,
+            activeRole: 'CUSTOMER',
+            hybridModeEnabled: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await updateDoc(publicRef, {
+            displayName: safeDisplayName,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.warn('[Auth Profile Sync Skipped - Local Fallback]', sanitizeFirebaseError(err, OperationType.WRITE));
+      }
+
+      try {
+        const privateSnap = await getDoc(privateRef);
+        if (!privateSnap.exists()) {
+          await setDoc(privateRef, {
+            uid: user.uid,
+            email: (user.email || 'user@motopilot.com.tr').slice(0, 160),
+            createdAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.warn('[Private Profile Sync Skipped - Local Fallback]', sanitizeFirebaseError(err, OperationType.WRITE));
+      }
     }
+    return user;
+  } catch (error) {
+    throw new Error(sanitizeFirebaseError(error, OperationType.WRITE));
   }
-  return user;
 }
 
 export async function signOutFirebaseUser(): Promise<void> {
@@ -156,23 +175,33 @@ export async function syncOrderToFirestore(params: {
   if (!user || !user.emailVerified) return;
   const safeId = params.orderId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
   const path = `orders/${safeId}`;
+  const orderRef = doc(db, 'orders', safeId);
+
   try {
-    await setDoc(doc(db, 'orders', safeId), {
-      orderId: safeId,
-      ownerId: user.uid,
-      serviceType: params.serviceType,
-      status: params.status,
-      pickupName: params.pickupName.slice(0, 200),
-      dropoffName: params.dropoffName.slice(0, 200),
-      totalFare: params.totalFare,
-      platformCommission: 0,
-      courierEarnings: params.totalFare,
-      snapshotHash: params.snapshotHash.slice(0, 128),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) {
+      await setDoc(orderRef, {
+        orderId: safeId,
+        ownerId: user.uid,
+        serviceType: params.serviceType,
+        status: params.status,
+        pickupName: params.pickupName.slice(0, 200),
+        dropoffName: params.dropoffName.slice(0, 200),
+        totalFare: params.totalFare,
+        platformCommission: 0,
+        courierEarnings: params.totalFare,
+        snapshotHash: params.snapshotHash.slice(0, 128),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      await updateDoc(orderRef, {
+        status: params.status,
+        updatedAt: serverTimestamp(),
+      });
+    }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('[Order Cloud Sync Fallback]', sanitizeFirebaseError(error, OperationType.WRITE), path.split('/')[0]);
   }
 }
 
@@ -187,20 +216,28 @@ export async function syncBatchRouteToFirestore(params: {
   const user = auth.currentUser;
   if (!user || !user.emailVerified) return;
   const safeId = params.batchId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
-  const path = `batch_routes/${safeId}`;
+  const batchRef = doc(db, 'batch_routes', safeId);
+
   try {
-    await setDoc(doc(db, 'batch_routes', safeId), {
-      batchId: safeId,
-      ownerId: user.uid,
-      businessId: params.businessId.slice(0, 64),
-      corridorName: params.corridorName.slice(0, 120),
-      packageCount: Math.min(10, Math.max(2, params.packageCount)),
-      kmSavedPercent: Math.min(90, Math.max(0, params.kmSavedPercent)),
-      status: params.status,
-      createdAt: serverTimestamp(),
-    });
+    const snap = await getDoc(batchRef);
+    if (!snap.exists()) {
+      await setDoc(batchRef, {
+        batchId: safeId,
+        ownerId: user.uid,
+        businessId: params.businessId.slice(0, 64),
+        corridorName: params.corridorName.slice(0, 120),
+        packageCount: Math.min(10, Math.max(2, params.packageCount)),
+        kmSavedPercent: Math.min(90, Math.max(0, params.kmSavedPercent)),
+        status: params.status,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      await updateDoc(batchRef, {
+        status: params.status,
+      });
+    }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('[Batch Cloud Sync Fallback]', sanitizeFirebaseError(error, OperationType.WRITE));
   }
 }
 
@@ -213,19 +250,23 @@ export async function syncWireNoticeToFirestore(params: {
   const user = auth.currentUser;
   if (!user || !user.emailVerified) return;
   const safeId = params.noticeId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
-  const path = `wire_notices/${safeId}`;
+  const noticeRef = doc(db, 'wire_notices', safeId);
+
   try {
-    await setDoc(doc(db, 'wire_notices', safeId), {
-      noticeId: safeId,
-      ownerId: user.uid,
-      businessId: params.businessId.slice(0, 64),
-      wireReferenceCode: params.wireReferenceCode.slice(0, 64),
-      amountTl: Math.min(500000, Math.max(1, params.amountTl)),
-      approvalStatus: 'PENDING',
-      createdAt: serverTimestamp(),
-    });
+    const snap = await getDoc(noticeRef);
+    if (!snap.exists()) {
+      await setDoc(noticeRef, {
+        noticeId: safeId,
+        ownerId: user.uid,
+        businessId: params.businessId.slice(0, 64),
+        wireReferenceCode: params.wireReferenceCode.slice(0, 64),
+        amountTl: Math.min(500000, Math.max(1, params.amountTl)),
+        approvalStatus: 'PENDING',
+        createdAt: serverTimestamp(),
+      });
+    }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('[Wire Notice Cloud Sync Fallback]', sanitizeFirebaseError(error, OperationType.WRITE));
   }
 }
 
@@ -240,7 +281,8 @@ export function subscribeToUserCloudOrders(
       onData(snapshot.size);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders');
+      console.warn('[Cloud Orders Subscription Fallback]', sanitizeFirebaseError(error, OperationType.LIST));
+      onData(0);
     }
   );
 }
